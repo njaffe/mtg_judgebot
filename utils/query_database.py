@@ -20,7 +20,7 @@ def load_args_db():
     # Load the database
     embedding_function = OpenAIEmbeddings(openai_api_key=API_KEY)
     db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
-    return query_text, db 
+    return query_text, db
 
 def create_context_and_prompt(query_text, db, show_similarity=False):
     """

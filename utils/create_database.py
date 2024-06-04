@@ -9,18 +9,40 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import DirectoryLoader
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-from config import API_KEY, DATA_PATH, CHROMA_PATH
+from config import API_KEY, DATA_PATH, CHROMA_PATH, JSON_DIRECTORY
 
+
+# def load_documents():
+#     """
+#     Load documents from the data directory.
+#     """
+#     loader = DirectoryLoader(DATA_PATH, glob="*.txt")
+#     # loader = DirectoryLoader(DATA_PATH)
+#     documents = loader.load()
+#     print(f"num docs: len(documents)")
+#     return documents
 
 def load_documents():
     """
-    Load documents from the data directory.
+    Load documents from the data directory, supporting both text and JSON formats.
     """
-    loader = DirectoryLoader(DATA_PATH, glob="*.txt")
+    loader = DirectoryLoader(DATA_PATH,glob="*.txt")
     documents = loader.load()
-    return documents
 
-def split_text(documents: list[Document], verbose=False):
+    json_documents = []
+    for filename in os.listdir(JSON_DIRECTORY):
+        if filename.endswith('.json'):
+            with open(os.path.join(DATA_PATH, filename), 'r') as file:
+                data = json.load(file)
+                # Assuming each JSON file represents a document
+                document = Document(data['content'], metadata=data.get('metadata', {}))
+                json_documents.append(document)
+
+    res = documents + json_documents
+    print(f"num docs: {len(res)}")
+    return res
+
+def split_text(documents: list[Document], verbose=True):
     """
     Split the text into chunks.
     """
@@ -54,7 +76,7 @@ def save_to_chroma(chunks: list[Document]):
         OpenAIEmbeddings(openai_api_key=API_KEY),
         persist_directory=CHROMA_PATH
     )
-    db.persist()
+    # db.persist()
     print(f"Saved {len(chunks)} chunks to {CHROMA_PATH}.")
 
 def create_database():
