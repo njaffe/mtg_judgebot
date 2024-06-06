@@ -1,5 +1,6 @@
 # Adapted code from /docs/modules/agents/how_to/sharedmemory_for_tools
 # see: https://python.langchain.com/v0.2/docs/integrations/tools/reddit_search/
+# keys: https://www.reddit.com/prefs/apps
 
 import os
 import sys

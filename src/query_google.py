@@ -1,5 +1,7 @@
 # Adapted code from /docs/modules/agents/how_to/sharedmemory_for_tools
-# see: https://python.langchain.com/v0.2/docs/integrations/tools/reddit_search/
+# see: https://python.langchain.com/v0.2/docs/integrations/tools/google_search/
+# custom API: https://console.cloud.google.com/apis/api/customsearch.googleapis.com/metrics?project=noah-242316
+# keys: https://console.cloud.google.com/apis/credentials?pli=1&project=noah-242316
 
 import os
 import sys
@@ -7,8 +9,7 @@ from dotenv import load_dotenv
 from langchain.agents import AgentExecutor, StructuredChatAgent
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory, ReadOnlySharedMemory
-from langchain_community.tools.reddit_search.tool import RedditSearchRun
-from langchain_community.utilities.reddit_search import RedditSearchAPIWrapper
+from langchain_google_community import GoogleSearchAPIWrapper
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import Tool
 from langchain_openai import ChatOpenAI
@@ -16,15 +17,13 @@ from langchain_openai import ChatOpenAI
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 
 from config import API_KEY
+from utils.query_tools import create_prompt, run_query
 
 def get_google_tool(
-    client_id,
-    client_secret,
-    user_agent):
+    google_cse_id,
+    google_api_key):
 
-    search = GoogleSearchAPIWrapper(
-        google_cse_id,
-        google_api_key)
+    search = GoogleSearchAPIWrapper()
 
     google_tool = Tool(
         name="google_search",
@@ -47,11 +46,9 @@ if __name__ == "__main__":
     INPUT = "what is the most popular mtg commander?"
 
 
-    google_tool = get_google_tool(google_client_id,google_client_secret,google_user_agent)
+    google_tool = get_google_tool(google_cse_id,google_api_key)
     tools = [
         google_tool
     ]   
     prompt,memory = create_prompt(INPUT, tools, openai_api_key)
     run_query(openai_api_key,prompt,memory,tools, INPUT)
-
-# NEXT: GET IDS
