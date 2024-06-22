@@ -33,22 +33,50 @@ def get_google_tool(
 
     return google_tool
 
+def query_google(
+    input,
+    openai_api_key,
+    google_cse_id,
+    google_api_key):
+    
+    # INPUT = "what is the most popular creature used as a commander in the Magic: the Gathering commander format?"
+    if input:
+        google_tool = get_google_tool(
+            google_cse_id,
+            google_api_key)
+        
+        tools = [
+            google_tool
+        ]   
+        
+        prompt,memory = create_prompt(
+            input,
+            tools,
+            openai_api_key)
+        
+        run_query(
+            openai_api_key,
+            prompt,
+            memory,
+            tools,
+            input)
+    else:
+        print("No input provided. Exiting...")
+
 if __name__ == "__main__":
 
     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
     load_dotenv(dotenv_path) # Load environment variables
     
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
     
-    google_cse_id = os.environ.get("GOOGLE_CSE_ID")
-    google_api_key = os.environ.get("GOOGLE_API_KEY")
+    GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
-    INPUT = "what is the most popular mtg commander?"
+    INPUT = "what is the most popular creature used as a commander in the Magic: the Gathering commander format?"
 
-
-    google_tool = get_google_tool(google_cse_id,google_api_key)
-    tools = [
-        google_tool
-    ]   
-    prompt,memory = create_prompt(INPUT, tools, openai_api_key)
-    run_query(openai_api_key,prompt,memory,tools, INPUT)
+    query_google(
+        input=INPUT,
+        openai_api_key=OPENAI_API_KEY,
+        google_cse_id=GOOGLE_CSE_ID,
+        google_api_key=GOOGLE_API_KEY)
