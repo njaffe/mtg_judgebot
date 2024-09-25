@@ -40,12 +40,29 @@ def create_prompt(
     )    
     return prompt, memory
 
-def run_query(
-    openai_api_key,
-    prompt,
-    memory,
-    tools,
-    input):
+# def run_query(
+#     openai_api_key,
+#     prompt,
+#     memory,
+#     tools,
+#     input):
+
+#     llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
+
+#     llm_chain = LLMChain(llm=llm, prompt=prompt)
+#     agent = StructuredChatAgent(llm_chain=llm_chain, verbose=True, tools=tools)
+#     agent_chain = AgentExecutor.from_agent_and_tools(
+#         agent=agent, verbose=True, memory=memory, tools=tools
+#     )
+
+#     response = agent_chain.invoke(input=input)
+
+#     process_info = response
+#     answer = response['output']
+#     print(f"Answer: {answer}")
+#     return answer
+
+def run_query(openai_api_key, prompt, memory, tools, input_text):
 
     llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
 
@@ -55,9 +72,16 @@ def run_query(
         agent=agent, verbose=True, memory=memory, tools=tools
     )
 
-    response = agent_chain.invoke(input=input)
+    response = agent_chain.invoke(input=input_text)
 
-    process_info = response
-    answer = response['output']
-    print(f"Answer: {answer}")
-    return answer
+    # Returning the entire response object, but no print statement here
+    return response['output']
+
+if __name__ == "__main__":
+    load_dotenv()
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    tools = [RedditSearchRun(), RedditSearchAPIWrapper()]
+    input = "What is the best way to cook a steak?"
+
+    prompt, memory = create_prompt(input, tools, openai_api_key)
+    run_query(openai_api_key, prompt, memory, tools, input)

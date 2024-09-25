@@ -7,24 +7,26 @@ from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import DirectoryLoader
+from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-from config import API_KEY, DATA_PATH, CHROMA_PATH, JSON_DIRECTORY
 
 
-def load_documents():
+def load_documents(
+    data_path,
+    json_directory):
     """
     Load documents from the data directory, supporting both text and JSON formats.
     """
     # Load text documents
-    loader = DirectoryLoader(DATA_PATH, glob="*.txt")
+    loader = DirectoryLoader(os.path.join(data_path), glob="*.txt")
     documents = loader.load()
 
     # Load JSON documents
     json_documents = []
-    for filename in os.listdir(JSON_DIRECTORY):
+    for filename in os.listdir(os.path.join(data_path, json_directory)):
         if filename.endswith('.json'):
-            with open(os.path.join(JSON_DIRECTORY, filename), 'r') as file:  # Fix path to JSON_DIRECTORY
+            with open(os.path.join(json_directory, filename), 'r') as file:
                 try:
                     data = json.load(file)
                     document = Document(data['content'], metadata=data.get('metadata', {}))
@@ -60,33 +62,53 @@ def split_text(documents: list[Document], verbose=True):
     return chunks
 
 
-def save_to_chroma(chunks: list[Document]):
+def save_to_chroma(chroma_path, chunks: list[Document], openai_api_key):
     """
     Save the chunks to the Chroma vector database.
     """
     # Remove DB if it exists
-    if os.path.exists(CHROMA_PATH):
-        shutil.rmtree(CHROMA_PATH)
+    if os.path.exists(chroma_path):
+        shutil.rmtree(chroma_path)
 
     # Create new DB from documents.
     db = Chroma.from_documents(
         chunks,
-        OpenAIEmbeddings(openai_api_key=API_KEY),
-        persist_directory=CHROMA_PATH
+        OpenAIEmbeddings(openai_api_key=openai_api_key),
+        persist_directory=chroma_path
     )
     # Persist the database
     db.persist()
-    print(f"Saved {len(chunks)} chunks to {CHROMA_PATH}.")
+    print(f"Saved {len(chunks)} chunks to {chroma_path}.")
 
 
-def create_database():
+def create_database(
+    data_path,
+    json_directory,
+    chroma_path,
+    openai_api_key):
     """
     Full pipeline: Load documents, split text, and save to the Chroma database.
     """
-    documents = load_documents()
+    documents = load_documents(
+        data_path,
+        json_directory)
     chunks = split_text(documents)
-    save_to_chroma(chunks)
+    save_to_chroma(chroma_path, chunks, openai_api_key)
 
 
 if __name__ == "__main__":
-    create_database()
+    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    load_dotenv(dotenv_path)
+
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+    chroma_path = os.getenv('CHROMA_PATH')
+    data_path = os.getenv('DATA_PATH')
+    json_directory = os.getenv('JSON_DIRECTORY')
+
+    print(f"\nCreating database with data_path={data_path}, json_directory={json_directory}, chroma_path={chroma_path}, openai_api_key={openai_api_key[:5]}...\n")
+
+    create_database(
+        data_path,
+        json_directory,
+        chroma_path,
+        openai_api_key)

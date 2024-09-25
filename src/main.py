@@ -1,6 +1,6 @@
-from query_tools.query_database_rag import query_rag_db
-from query_tools.query_google import query_google
-from query_tools.query_reddit import query_reddit
+from utils.query_database_rag import query_rag_db
+from utils.query_google import query_google
+from utils.query_reddit import query_reddit
 from utils.create_database_rag import create_database  # Add this import
 
 def run_queries(refresh_db=False):
