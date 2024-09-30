@@ -1,100 +1,3 @@
-# Adapted code from /docs/modules/agents/how_to/sharedmemory_for_tools
-# see: https://python.langchain.com/v0.2/docs/integrations/tools/reddit_search/
-# keys: https://www.reddit.com/prefs/apps
-
-# import os
-# import sys
-# from dotenv import load_dotenv
-# from langchain.agents import AgentExecutor, StructuredChatAgent
-# from langchain.chains import LLMChain
-# from langchain.memory import ConversationBufferMemory, ReadOnlySharedMemory
-# from langchain_community.tools.reddit_search.tool import RedditSearchRun
-# from langchain_community.utilities.reddit_search import RedditSearchAPIWrapper
-# from langchain_core.prompts import PromptTemplate
-# from langchain_core.tools import Tool
-# from langchain_openai import ChatOpenAI
-
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-
-# from config import API_KEY
-# from utils.query_tools import create_prompt, run_query
-
-# def get_reddit_tool(
-#     client_id,
-#     client_secret,
-#     user_agent):
-
-#     reddit_tool = RedditSearchRun(
-#                 api_wrapper=RedditSearchAPIWrapper(
-#                     reddit_client_id=client_id,
-#                     reddit_client_secret=client_secret,
-#                     reddit_user_agent=user_agent,
-#                 )
-#             )
-
-#     return reddit_tool
-
-# def query_reddit(
-#     input,
-#     openai_api_key,
-#     reddit_client_id,
-#     reddit_client_secret,
-#     reddit_user_agent):
-    
-#     # input = "what is the most popular creature used as a commander in the Magic: the Gathering commander format?"
-#     if input:
-#         reddit_tool = get_reddit_tool(
-#             reddit_client_id,
-#             reddit_client_secret,
-#             reddit_user_agent)
-        
-#         tools = [
-#             reddit_tool
-#         ]   
-        
-#         prompt,memory = create_prompt(
-#             input,
-#             tools,
-#             openai_api_key)
-        
-#         run_query(
-#             openai_api_key,
-#             prompt,
-#             memory,
-#             tools,
-#             input)
-#     else:
-#         print("No input provided. Exiting...")
-
-# if __name__ == "__main__":
-#     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-#     load_dotenv(dotenv_path) # Load environment variables
-    
-#     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-
-#     REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID")
-#     REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET")
-#     REDDIT_USER_AGENT = os.environ.get("REDDIT_USER_AGENT")
-
-#     input = """I have a creature with the following text: 
-#             Whenever Ghost of Ramirez DePietro deals combat damage to a player, 
-#             choose up to one target card in a graveyard that was discarded or put there from a library this turn. 
-#             Put that card into its owner's hand.' I have another creature with the text: 
-#             'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' 
-
-#             Can I return a card put into my graveyard by the explore ability with the first ability? 
-#             Ramirez is a pirate. "
-#             """
-
-#     query_reddit(
-#         input=input,
-#         openai_api_key=OPENAI_API_KEY,
-#         reddit_client_id=REDDIT_CLIENT_ID,
-#         reddit_client_secret=REDDIT_CLIENT_SECRET,
-#         reddit_user_agent=REDDIT_USER_AGENT)
-
-# this WORKS but is technically deprecated. New runnable version does not seem to work with tools yet.
-
 import os
 import sys
 from dotenv import load_dotenv
@@ -103,12 +6,10 @@ from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
 from langchain_community.tools.reddit_search.tool import RedditSearchRun
 from langchain_community.utilities.reddit_search import RedditSearchAPIWrapper
-from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import Tool
 from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-
 from config import API_KEY
 from utils.query_tools import create_prompt
 
@@ -152,9 +53,18 @@ def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_
     # If no action, just return the agent's regular response
     return response['output']
 
-# Step 3: Define the main function to run the conversation loop
-def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_user_agent):
+# Step 3: Modify the main function to accept query text or a file
+def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_user_agent, query_text=None, file_path=None):
     
+    # Load the query text from string or file
+    if file_path and os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            input_text = file.read().strip()
+    elif query_text:
+        input_text = query_text
+    else:
+        raise ValueError("Either query_text or file_path must be provided.")
+
     # Get the Reddit Search tool
     reddit_tool = get_reddit_tool(reddit_client_id, reddit_client_secret, reddit_user_agent)
     
@@ -163,30 +73,23 @@ def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_
     # Memory for the conversation to persist across inputs
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     
-    # Keep the conversation running in a loop
-    while True:
-        input_text = input("You: ")  # Get user input from the terminal
-        
-        if input_text.lower() in ['exit', 'quit', 'q']:
-            print("Conversation ended.")
-            break  # Exit the loop if the user wants to end the conversation
-        
-        # Generate prompt for the current input with memory included
-        prompt, _ = create_prompt(input_text, tools, openai_api_key)
+    # Generate prompt for the current input with memory included
+    prompt, _ = create_prompt(input_text, tools, openai_api_key)
 
-        # Get the agent's response, handling tools/actions if needed
-        response = run_query_with_action_handling(
-            openai_api_key,
-            prompt,
-            memory,
-            tools,
-            input_text
-        )
-        
-        print(f"Agent: {response}")  # Now we only print once
+    # Get the agent's response, handling tools/actions if needed
+    response = run_query_with_action_handling(
+        openai_api_key,
+        prompt,
+        memory,
+        tools,
+        input_text
+    )
+    
+    return response
 
-# Step 4: Run the script with environment variables
+# Step 4: Optionally, allow command line usage
 if __name__ == "__main__":
+    import argparse
 
     # Load environment variables
     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -197,19 +100,26 @@ if __name__ == "__main__":
     REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET")
     REDDIT_USER_AGENT = os.environ.get("REDDIT_USER_AGENT")
 
-    # Example input
-    input_text = """I have a creature with the following text: 
-    Whenever Ghost of Ramirez DePietro deals combat damage to a player, 
-    choose up to one target card in a graveyard that was discarded or put there from a library this turn. 
-    Put that card into its owner's hand.' I have another creature with the text: 
-    'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' 
-    Can I return a card put into my graveyard by the explore ability with the first ability? 
-    Ramirez is a pirate."""
+    # CLI argument parsing
+    parser = argparse.ArgumentParser(description="Query Reddit with a string or file.")
+    parser.add_argument("--query_text", type=str, help="The text query to be used.")
+    parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
 
-    # Start the conversation loop
-    query_reddit(
+    args = parser.parse_args()
+
+    # Ensure either query_text or file_path is provided
+    if not args.query_text and not args.file_path:
+        raise ValueError("Either --query_text or --file_path must be provided.")
+
+    # Run the Reddit query
+    result = query_reddit(
         openai_api_key=OPENAI_API_KEY,
         reddit_client_id=REDDIT_CLIENT_ID,
         reddit_client_secret=REDDIT_CLIENT_SECRET,
-        reddit_user_agent=REDDIT_USER_AGENT
+        reddit_user_agent=REDDIT_USER_AGENT,
+        query_text=args.query_text,
+        file_path=args.file_path
     )
+
+    # Print the result
+    print(f"\nQuery result:\n{result}")

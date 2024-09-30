@@ -10,7 +10,6 @@ from langchain_core.tools import Tool
 from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-
 from config import API_KEY
 from utils.query_tools import create_prompt
 
@@ -53,9 +52,18 @@ def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_
     # If no action, just return the agent's regular response
     return response['output']
 
-# Step 3: Define the main function to run the conversation loop
-def query_google(openai_api_key, google_cse_id, google_api_key):
+# Step 3: Modify the main function to accept query text or a file
+def query_google(openai_api_key, google_cse_id, google_api_key, query_text=None, file_path=None):
     
+    # Load the query text from string or file
+    if file_path and os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            input_text = file.read().strip()
+    elif query_text:
+        input_text = query_text
+    else:
+        raise ValueError("Either query_text or file_path must be provided.")
+
     # Get the Google Search tool
     google_tool = get_google_tool(google_cse_id, google_api_key)
     
@@ -64,32 +72,24 @@ def query_google(openai_api_key, google_cse_id, google_api_key):
     # Memory for the conversation to persist across inputs
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     
-    # Keep the conversation running in a loop
-    while True:
-        input_text = input("You: ")  # Get user input from the terminal
-        
-        if input_text.lower() in ['exit', 'quit', 'q']:
-            print("Conversation ended.")
-            break  # Exit the loop if the user wants to end the conversation
-        
-        # Generate prompt for the current input with memory included
-        prompt, _ = create_prompt(input_text, tools, openai_api_key)
+    # Generate prompt for the current input with memory included
+    prompt, _ = create_prompt(input_text, tools, openai_api_key)
 
-        # Get the agent's response, handling tools/actions if needed
-        response = run_query_with_action_handling(
-            openai_api_key,
-            prompt,
-            memory,
-            tools,
-            input_text
-        )
-        
-        print(f"Agent: {response}")  # Now we only print once
+    # Get the agent's response, handling tools/actions if needed
+    response = run_query_with_action_handling(
+        openai_api_key,
+        prompt,
+        memory,
+        tools,
+        input_text
+    )
+    
+    return response
 
-# Step 4: Run the script with environment variables
+# Step 4: Optionally, allow command line usage
 if __name__ == "__main__":
+    import argparse
 
-    # Load environment variables
     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
     load_dotenv(dotenv_path)
     
@@ -97,11 +97,25 @@ if __name__ == "__main__":
     GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
-    # Start the conversation loop
-    query_google(
+    # CLI argument parsing
+    parser = argparse.ArgumentParser(description="Query Google with a string or file.")
+    parser.add_argument("--query_text", type=str, help="The text query to be used.")
+    parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
+
+    args = parser.parse_args()
+
+    # Ensure either query_text or file_path is provided
+    if not args.query_text and not args.file_path:
+        raise ValueError("Either --query_text or --file_path must be provided.")
+
+    # Run the Google query
+    result = query_google(
         openai_api_key=OPENAI_API_KEY,
         google_cse_id=GOOGLE_CSE_ID,
-        google_api_key=GOOGLE_API_KEY
+        google_api_key=GOOGLE_API_KEY,
+        query_text=args.query_text,
+        file_path=args.file_path
     )
 
-# What is the most popular creature used as a commander in the Magic: the Gathering commander format?
+    # Print the result
+    print(f"\nQuery result:\n{result}")
