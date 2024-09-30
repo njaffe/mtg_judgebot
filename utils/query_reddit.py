@@ -10,8 +10,10 @@ from langchain_core.tools import Tool
 from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
+
 from config import API_KEY
-from utils.query_tools import create_prompt
+from utils.langchain_query_tools import create_prompt
 
 # Step 1: Define the function to get the Reddit Search tool
 def get_reddit_tool(client_id, client_secret, user_agent):
@@ -123,3 +125,5 @@ if __name__ == "__main__":
 
     # Print the result
     print(f"\nQuery result:\n{result}")
+
+# python utils/query_reddit.py --query_text "How much protein should I be getting as a 30 year old, 200lb male?"

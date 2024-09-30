@@ -46,8 +46,6 @@ def run_queries(query_text, refresh_db=False):
         query_text=query_text
     )
 
-# def query_google(openai_api_key, google_cse_id, google_api_key, query_text=None, file_path=None):
-
     # Query Reddit Search
     print("\nQuerying Reddit Search...\n")
     result_reddit = query_reddit(
@@ -73,17 +71,39 @@ def run_queries(query_text, refresh_db=False):
     return combined_results
 
 if __name__ == "__main__":
+    import argparse
+
     # Example query text
-    query_text = """I have a creature with the following text: 
-    Whenever Ghost of Ramirez DePietro deals combat damage to a player, 
-    choose up to one target card in a graveyard that was discarded or put there from a library this turn. 
-    Put that card into its owner's hand. I have another creature with the text: 
-    'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' 
-    Can I return a card put into my graveyard by the explore ability with the first ability? 
-    Ramirez is a pirate."""
+    sample_query_text = """I have a creature with the following text: 
+        Whenever Ghost of Ramirez DePietro deals combat damage to a player, 
+        choose up to one target card in a graveyard that was discarded or put there from a library this turn. 
+        Put that card into its owner's hand. I have another creature with the text: 
+        'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' 
+        Can I return a card put into my graveyard by the explore ability with the first ability? 
+        Ramirez is a pirate."""
+
+
+    # CLI argument parsing
+    parser = argparse.ArgumentParser(description="Query Reddit with a string or file.")
+    parser.add_argument("--query_text", type=str, help="The text query to be used.")
+    parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
+
+    args = parser.parse_args()
+
+    # Ensure either query_text or file_path is provided
+    if not args.query_text and not args.file_path:
+        if sample_query_text:
+            print("No --query_text or --file_path provided; using sample.")
+            query_text = sample_query_text
+        else:
+            raise ValueError("No --query_text, --file_path or sample provided.")
+        
+
 
     # Run all queries and combine results
     results = run_queries(query_text=query_text, refresh_db=False)
 
     # Print combined results
     print("\nCombined Results:\n", results)
+
+# python src/main.py

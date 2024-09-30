@@ -11,6 +11,9 @@ from langchain_core.tools import Tool
 from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+# Add paths for utilities and source files
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 def create_prompt(
     input,
@@ -39,28 +42,6 @@ def create_prompt(
         input_variables=["input", "chat_history", "agent_scratchpad"],
     )    
     return prompt, memory
-
-# def run_query(
-#     openai_api_key,
-#     prompt,
-#     memory,
-#     tools,
-#     input):
-
-#     llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
-
-#     llm_chain = LLMChain(llm=llm, prompt=prompt)
-#     agent = StructuredChatAgent(llm_chain=llm_chain, verbose=True, tools=tools)
-#     agent_chain = AgentExecutor.from_agent_and_tools(
-#         agent=agent, verbose=True, memory=memory, tools=tools
-#     )
-
-#     response = agent_chain.invoke(input=input)
-
-#     process_info = response
-#     answer = response['output']
-#     print(f"Answer: {answer}")
-#     return answer
 
 def run_query(openai_api_key, prompt, memory, tools, input_text):
 

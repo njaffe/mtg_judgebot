@@ -10,8 +10,10 @@ from langchain_core.tools import Tool
 from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
+
 from config import API_KEY
-from utils.query_tools import create_prompt
+from utils.langchain_query_tools import create_prompt
 
 # Step 1: Define the function to get the Google Search tool
 def get_google_tool(google_cse_id, google_api_key):
@@ -119,3 +121,5 @@ if __name__ == "__main__":
 
     # Print the result
     print(f"\nQuery result:\n{result}")
+
+#  python utils/query_google.py --query_text "what's the weather in san francisco today?"
