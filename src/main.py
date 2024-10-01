@@ -82,6 +82,10 @@ if __name__ == "__main__":
         Can I return a card put into my graveyard by the explore ability with the first ability? 
         Ramirez is a pirate."""
 
+    # sample_query_text = """I am a 30 year old male and I would like to lose weight. I weight 
+    # 200 lbs and I am 6 feet tall. I would like to know how many calories I should eat per day
+    # to lose weight. I would also like to know how much protein I should be getting per day."""
+
 
     # CLI argument parsing
     parser = argparse.ArgumentParser(description="Query Reddit with a string or file.")
@@ -107,3 +111,5 @@ if __name__ == "__main__":
     print("\nCombined Results:\n", results)
 
 # python src/main.py
+
+# both query_redit and query_google appear to be working as expected, but function here is failing

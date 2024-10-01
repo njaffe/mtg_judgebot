@@ -28,6 +28,19 @@ def get_reddit_tool(client_id, client_secret, user_agent):
 
 # Step 2: Define the function to handle queries and tool execution
 def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_text):
+    """
+    This function handles the query and tool execution.
+    Args:
+        openai_api_key (str): The OpenAI API key.
+        prompt (BasePromptTemplate): The prompt template for the LLM.
+        memory (ConversationBufferMemory): The conversation memory.
+        tools (list): List of available tools.
+        input_text (str): The input text for the query.
+
+    Returns:
+        str: The response from the agent, which may include tool execution results.
+    """
+    print("Running query with action handling")
 
     llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
 
@@ -38,26 +51,40 @@ def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_
     )
 
     # Invoke the agent chain with the memory being passed into the input
-    response = agent_chain.invoke(input=input_text)
+    response = agent_chain.invoke({"input": input_text})
     
-    # Handle tool actions within the response
-    if "action" in response:
-        action = response["action"]
-        action_input = response.get("action_input", "")
-        if action == "reddit_search":
-            # Execute the Reddit search tool
-            reddit_tool = next(tool for tool in tools if tool.name == "reddit_search")
-            search_result = reddit_tool.func(action_input)
-            
-            # After executing, return the result back to the conversation
-            return f"Search result: {search_result}"
+    # Check if the response contains an action
+    if "actions" in response:
+        actions = response["actions"]
+        for action in actions:
+            tool_name = action[0]
+            tool_input = action[1]
+            if tool_name == "reddit_search":
+                # Execute the Reddit search tool
+                reddit_tool = next(tool for tool in tools if tool.name == "reddit_search")
+                search_result = reddit_tool.run(tool_input)
+                
+                # After executing, return the result back to the conversation
+                return f"Search result: {search_result}\n\nAgent's response: {response['output']}"
     
     # If no action, just return the agent's regular response
     return response['output']
 
 # Step 3: Modify the main function to accept query text or a file
 def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_user_agent, query_text=None, file_path=None):
-    
+    """
+    This function handles the query and tool execution.
+    Args:
+        openai_api_key (str): The OpenAI API key.
+        reddit_client_id (str): The Reddit client ID.
+        reddit_client_secret (str): The Reddit client secret.
+        reddit_user_agent (str): The Reddit user agent.
+        query_text (str): The text query to be used.
+        file_path (str): Path to the file containing the query.
+
+    Returns:
+        str: The response from the agent, which may include tool execution results.
+    """
     # Load the query text from string or file
     if file_path and os.path.exists(file_path):
         with open(file_path, 'r') as file:
@@ -127,3 +154,5 @@ if __name__ == "__main__":
     print(f"\nQuery result:\n{result}")
 
 # python utils/query_reddit.py --query_text "How much protein should I be getting as a 30 year old, 200lb male?"
+
+# python utils/query_reddit.py --query_text "I have a creature with the following text: Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand. I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."

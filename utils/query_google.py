@@ -17,7 +17,7 @@ from utils.langchain_query_tools import create_prompt
 
 # Step 1: Define the function to get the Google Search tool
 def get_google_tool(google_cse_id, google_api_key):
-    search = GoogleSearchAPIWrapper()
+    search = GoogleSearchAPIWrapper(google_cse_id=google_cse_id, google_api_key=google_api_key)
     google_tool = Tool(
         name="google_search",
         description="Search Google for recent results.",
@@ -27,7 +27,6 @@ def get_google_tool(google_cse_id, google_api_key):
 
 # Step 2: Define the function to handle queries and tool execution
 def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_text):
-
     llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
 
     llm_chain = LLMChain(llm=llm, prompt=prompt)
@@ -56,7 +55,6 @@ def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_
 
 # Step 3: Modify the main function to accept query text or a file
 def query_google(openai_api_key, google_cse_id, google_api_key, query_text=None, file_path=None):
-    
     # Load the query text from string or file
     if file_path and os.path.exists(file_path):
         with open(file_path, 'r') as file:
@@ -122,4 +120,5 @@ if __name__ == "__main__":
     # Print the result
     print(f"\nQuery result:\n{result}")
 
-#  python utils/query_google.py --query_text "what's the weather in san francisco today?"
+# python utils/query_google.py --query_text "what's the weather in san francisco today?"
+# python utils/query_google.py --query_text "I have a creature with the following text: Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand. I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."

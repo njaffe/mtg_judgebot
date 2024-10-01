@@ -101,4 +101,5 @@ if __name__ == "__main__":
 
     # Run the RAG DB query
     query_rag_db(query_text=args.query_text, file_path=args.file_path, verbose=args.verbose)
-    
+
+# python utils/query_database_rag.py --query_text "I have a creature with the following text: Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand. I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."

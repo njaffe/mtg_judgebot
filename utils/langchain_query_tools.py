@@ -55,7 +55,6 @@ def run_query(openai_api_key, prompt, memory, tools, input_text):
 
     response = agent_chain.invoke(input=input_text)
 
-    # Returning the entire response object, but no print statement here
     return response['output']
 
 if __name__ == "__main__":
