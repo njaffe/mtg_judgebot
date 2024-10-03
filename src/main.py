@@ -88,21 +88,20 @@ if __name__ == "__main__":
 
 
     # CLI argument parsing
-    parser = argparse.ArgumentParser(description="Query Reddit with a string or file.")
+    parser = argparse.ArgumentParser(description="Query multiple sources with a string or file.")
     parser.add_argument("--query_text", type=str, help="The text query to be used.")
     parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
 
     args = parser.parse_args()
 
-    # Ensure either query_text or file_path is provided
-    if not args.query_text and not args.file_path:
-        if sample_query_text:
-            print("No --query_text or --file_path provided; using sample.")
-            query_text = sample_query_text
-        else:
-            raise ValueError("No --query_text, --file_path or sample provided.")
-        
-
+    # Determine the query text
+    if args.query_text:
+        query_text = args.query_text
+    elif args.file_path:
+        with open(args.file_path, 'r') as file:
+            query_text = file.read().strip()
+    else:
+        query_text = input("Please enter your query: ")
 
     # Run all queries and combine results
     results = run_queries(query_text=query_text, refresh_db=False)

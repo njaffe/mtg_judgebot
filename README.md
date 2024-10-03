@@ -27,10 +27,6 @@ This project implements a Retrieval-Augmented Generation (RAG) system to create 
 - Multi-source answer compilation, presenting results from rules, Reddit, and Google searches
 - Natural language processing for understanding and responding to MTG-specific queries
 
-## Installation
-
-[Provide instructions on how to install and set up your project]
-
 
 bibliography:
 - [conversion of pdfs](https://soulheartgrit.medium.com/see-how-easily-you-can-transform-pdfs-into-sleek-markdown-without-complex-tools-819aea4940a0)
