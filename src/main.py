@@ -13,9 +13,11 @@ from create_database_rag import create_database
 
 # Define API keys and environment variables
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+# dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+print(f"api key: {OPENAI_API_KEY}")
 GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID")
@@ -75,9 +77,11 @@ if __name__ == "__main__":
 
     # Example query text
     sample_query_text = """I have a creature with the following text: 
-        Whenever Ghost of Ramirez DePietro deals combat damage to a player, 
+        'Whenever Ghost of Ramirez DePietro deals combat damage to a player, 
         choose up to one target card in a graveyard that was discarded or put there from a library this turn. 
-        Put that card into its owner's hand. I have another creature with the text: 
+        Put that card into its owner's hand.' 
+        
+        I have another creature with the text: 
         'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' 
         Can I return a card put into my graveyard by the explore ability with the first ability? 
         Ramirez is a pirate."""
@@ -87,24 +91,30 @@ if __name__ == "__main__":
     # to lose weight. I would also like to know how much protein I should be getting per day."""
 
 
-    # CLI argument parsing
-    parser = argparse.ArgumentParser(description="Query multiple sources with a string or file.")
-    parser.add_argument("--query_text", type=str, help="The text query to be used.")
-    parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
-
-    args = parser.parse_args()
-
-    # Determine the query text
-    if args.query_text:
-        query_text = args.query_text
-    elif args.file_path:
-        with open(args.file_path, 'r') as file:
-            query_text = file.read().strip()
-    else:
-        query_text = input("Please enter your query: ")
+    
 
     # Run all queries and combine results
-    results = run_queries(query_text=query_text, refresh_db=False)
+    if sample_query_text:
+        results = run_queries(query_text=sample_query_text, refresh_db=False)
+    
+    else:
+        # CLI argument parsing
+        parser = argparse.ArgumentParser(description="Query multiple sources with a string or file.")
+        parser.add_argument("--query_text", type=str, help="The text query to be used.")
+        parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
+
+        args = parser.parse_args()
+
+        # Determine the query text
+        if args.query_text:
+            query_text = args.query_text
+        elif args.file_path:
+            with open(args.file_path, 'r') as file:
+                query_text = file.read().strip()
+        else:
+            query_text = input("Please enter your query: ")
+        
+        results = run_queries(query_text=query_text, refresh_db=False)
 
     # Print combined results
     print("\nCombined Results:\n", results)
