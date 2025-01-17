@@ -15,11 +15,37 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
 from config import API_KEY
 from utils.langchain_query_tools import create_prompt
 
-# Step 1: Define the function to execute Reddit search
+
+class TokenLimitedConversationMemory(ConversationBufferMemory):
+    def __init__(self, max_token_limit, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._max_token_limit = max_token_limit  # Use a private variable to avoid Pydantic validation issues
+
+    @property
+    def max_token_limit(self):
+        return self._max_token_limit
+
+    def trim_history(self):
+        """
+        Trims the chat history to ensure it stays within the token limit.
+        """
+        total_tokens = 0
+        trimmed_history = []
+        for message in reversed(self.chat_memory.messages):  # Use `chat_memory.messages`
+            message_tokens = len(message.content.split())  # Approximate token count
+            if total_tokens + message_tokens > self.max_token_limit:
+                break
+            trimmed_history.append(message)
+            total_tokens += message_tokens
+        self.chat_memory.messages = list(reversed(trimmed_history))  # Update the message history
+
+
 def reddit_search_tool_run(input_text, client_id, client_secret, user_agent, subreddit=None, time_filter=None, sort=None, limit=10):
     """
     Executes a Reddit search based on the input query and parameters.
     """
+
+
     search_params = RedditSearchSchema(
         query=input_text,
         subreddit=subreddit,
@@ -35,7 +61,7 @@ def reddit_search_tool_run(input_text, client_id, client_secret, user_agent, sub
     reddit_tool = RedditSearchRun(api_wrapper=api_wrapper)
     return reddit_tool.run(search_params.dict())
 
-# Step 2: Define the function to get the Reddit Search tool
+
 def get_reddit_tool(client_id, client_secret, user_agent, subreddit=None, time_filter=None, sort=None, limit=10):
     """
     Returns a Tool object configured for Reddit search.
@@ -58,23 +84,29 @@ def get_reddit_tool(client_id, client_secret, user_agent, subreddit=None, time_f
         )
     )
 
-# Step 3: Define the function to handle queries and tool execution
+
+def truncate_input(input_text, max_tokens=1000):
+    """
+    Truncates input text to ensure it stays within the token limit.
+    """
+    words = input_text.split()
+    return " ".join(words[:max_tokens])
+
+
 def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_text):
     """
-    This function handles the query and tool execution.
-    Args:
-        openai_api_key (str): The OpenAI API key.
-        prompt (BasePromptTemplate): The prompt template for the LLM.
-        memory (ConversationBufferMemory): The conversation memory.
-        tools (list): List of available tools.
-        input_text (str): The input text for the query.
-
-    Returns:
-        str: The response from the agent, which may include tool execution results.
+    This function handles the query and tool execution while respecting the context length.
     """
     print("Running query with action handling")
 
-    llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
+    llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key, max_tokens=3000)
+
+    # Truncate the input text
+    input_text = truncate_input(input_text, max_tokens=1000)
+
+    # Trim history if needed
+    if hasattr(memory, "trim_history"):
+        memory.trim_history()
 
     llm_chain = LLMChain(llm=llm, prompt=prompt)
     agent = StructuredChatAgent(llm_chain=llm_chain, verbose=True, tools=tools)
@@ -82,44 +114,14 @@ def run_query_with_action_handling(openai_api_key, prompt, memory, tools, input_
         agent=agent, verbose=True, memory=memory, tools=tools
     )
 
-    # Invoke the agent chain with the memory being passed into the input
+    # Invoke the agent chain
     response = agent_chain.invoke({"input": input_text})
-    
-    # Check if the response contains an action
-    if "actions" in response:
-        actions = response["actions"]
-        for action in actions:
-            tool_name = action[0]
-            tool_input = action[1]
-            if tool_name == "reddit_search":
-                # Execute the Reddit search tool
-                reddit_tool = next(tool for tool in tools if tool.name == "reddit_search")
-                search_result = reddit_tool.run(tool_input)
-                
-                # After executing, return the result back to the conversation
-                return f"Search result: {search_result}\n\nAgent's response: {response['output']}"
-    
-    # If no action, just return the agent's regular response
-    return response['output']
+    return response.get("output", "No output generated.")
 
-# Step 4: Modify the main function to accept additional parameters
+
 def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_user_agent, query_text=None, file_path=None, subreddit=None, time_filter=None, sort=None, limit=10):
     """
     This function handles the query and tool execution.
-    Args:
-        openai_api_key (str): The OpenAI API key.
-        reddit_client_id (str): The Reddit client ID.
-        reddit_client_secret (str): The Reddit client secret.
-        reddit_user_agent (str): The Reddit user agent.
-        query_text (str): The text query to be used.
-        file_path (str): Path to the file containing the query.
-        subreddit (str): The subreddit to filter results.
-        time_filter (str): The time filter for results.
-        sort (str): The sort order for results.
-        limit (int): The maximum number of results to retrieve.
-
-    Returns:
-        str: The response from the agent, which may include tool execution results.
     """
     # Load the query text from string or file
     if file_path and os.path.exists(file_path):
@@ -130,6 +132,13 @@ def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_
     else:
         raise ValueError("Either query_text or file_path must be provided.")
 
+    # ensure inputs are strings
+    input_text = str(input_text)
+    subreddit = str(subreddit) if subreddit else None
+    time_filter = str(time_filter) if time_filter else None
+    sort = str(sort) if sort else None
+    limit = str(limit) if limit else '10'
+
     # Get the Reddit Search tool
     reddit_tool = get_reddit_tool(
         reddit_client_id, reddit_client_secret, reddit_user_agent, subreddit, time_filter, sort, limit
@@ -138,7 +147,7 @@ def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_
     tools = [reddit_tool]  # Add more tools here if needed
     
     # Memory for the conversation to persist across inputs
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    memory = TokenLimitedConversationMemory(max_token_limit=3000, memory_key="chat_history", return_messages=True)
     
     # Generate prompt for the current input with memory included
     prompt, _ = create_prompt(input_text, tools, openai_api_key)
@@ -154,7 +163,7 @@ def query_reddit(openai_api_key, reddit_client_id, reddit_client_secret, reddit_
     
     return response
 
-# Step 5: Optionally, allow command line or predefined variables for testing
+
 if __name__ == "__main__":
     import argparse
 
@@ -162,21 +171,20 @@ if __name__ == "__main__":
     dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
     load_dotenv(dotenv_path)
     
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-    REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID")
-    REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET")
-    REDDIT_USER_AGENT = os.environ.get("REDDIT_USER_AGENT")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
+    REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
+    REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT")
 
-    # Predefined variables for testing
-    TEST_MODE = True  # Change to False to use command-line arguments
+    TEST_MODE = True  # Set to False to enable CLI mode
+
     if TEST_MODE:
-        # query_text = "What are the best Python libraries for data analysis?"
-        query_text = "I have a creature with the following text: Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand. I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."
-        # subreddit = "python"
+        query_text = "I have a creature (Ghost of Ramirez dePietro) with the following text: Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand. I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."
         subreddit = "mtgrules"
         time_filter = "year"
         sort = "top"
-        limit = '5'
+        limit = 15
+
         result = query_reddit(
             openai_api_key=OPENAI_API_KEY,
             reddit_client_id=REDDIT_CLIENT_ID,
@@ -190,7 +198,6 @@ if __name__ == "__main__":
         )
         print(f"\nQuery result:\n{result}")
     else:
-        # CLI argument parsing
         parser = argparse.ArgumentParser(description="Query Reddit with a string or file.")
         parser.add_argument("--query_text", type=str, help="The text query to be used.")
         parser.add_argument("--file_path", type=str, help="Path to the file containing the query.")
@@ -201,11 +208,6 @@ if __name__ == "__main__":
 
         args = parser.parse_args()
 
-        # Ensure either query_text or file_path is provided
-        if not args.query_text and not args.file_path:
-            raise ValueError("Either --query_text or --file_path must be provided.")
-
-        # Run the Reddit query
         result = query_reddit(
             openai_api_key=OPENAI_API_KEY,
             reddit_client_id=REDDIT_CLIENT_ID,
@@ -219,7 +221,6 @@ if __name__ == "__main__":
             limit=args.limit
         )
 
-        # Print the result
         print(f"\nQuery result:\n{result}")
 
 # python utils/query_reddit.py --query_text "How much protein should I be getting as a 30 year old, 200lb male?"
