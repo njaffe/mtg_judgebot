@@ -165,3 +165,5 @@ chroma/
 #.idea/
 
 *_DEPR.py
+
+.DS_Store
