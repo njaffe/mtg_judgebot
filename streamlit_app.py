@@ -9,7 +9,7 @@ if os.path.exists(".env"):
 
 # Page setup
 st.set_page_config(page_title="MTG Judge Bot", layout="wide")
-st.title("🧙 MTG Judge Bot")
+st.title("MTG Judge Bot")
 st.markdown("Ask complex Magic: The Gathering rules questions and get smart, grounded answers from trusted sources.")
 
 # Input field
@@ -35,7 +35,7 @@ if st.session_state.results:
     results = st.session_state.results
 
     # Always show final answer
-    st.success("🧠 Final Answer:")
+    st.success("Final Answer:")
     st.markdown(results["final_answer"])
 
     # Toggle to show individual responses
@@ -43,15 +43,15 @@ if st.session_state.results:
 
     if st.session_state.show_sources:
         st.divider()
-        st.subheader("📚 Source Breakdown")
+        st.subheader("Source Breakdown")
 
-        with st.expander("📘 RAG Database Result"):
+        with st.expander("RAG Database Result"):
             st.markdown(results["rag"])
 
-        with st.expander("🌐 Google Search Result"):
+        with st.expander("Google Search Result"):
             st.markdown(results["google"])
 
-        with st.expander("👾 Reddit Search Result (API + Google Combined)"):
+        with st.expander("Reddit Search Result (API + Google Combined)"):
             st.markdown(results["reddit"])
 
 # How to run (comment)
