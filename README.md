@@ -36,71 +36,246 @@ The system uses agents within the RAG framework to query various sources, includ
 
 ### Steps
 
-1.	Clone the repository:
+1. Clone the repository:
 
-	`git clone https://github.com/your-repo/mtg-ai-judge.git`
+	```sh
+	git clone https://github.com/your-repo/mtg-ai-judge.git
+	cd mtg-ai-judge
+	```
 
-	`cd mtg-ai-judge`
+2. Create and activate a virtual environment:
 
-2.	Install the required packages:
+	```sh
+	python3 -m venv venv
+	source venv/bin/activate
+	```
 
-	`pip install -r requirements.txt`
+3. Install the required packages:
 
-3.	Set up your environment variables in a .env file (refer to the .env.sample file in the repo):
+	```sh
+	pip install -r requirements.txt
+	```
 
-	`OPENAI_API_KEY=your_openai_api_key`
+4. Set up your environment variables in a `.env` file (refer to the `.env.sample` file in the repo):
 
-	`GOOGLE_CSE_ID=your_google_cse_id`
-
-	`GOOGLE_API_KEY=your_google_api_key`
-
-	`REDDIT_CLIENT_ID=your_reddit_client_id`
-
-	`REDDIT_CLIENT_SECRET=your_reddit_client_secret`
-
-	`REDDIT_USER_AGENT=your_reddit_user_agent`
+	```env
+	OPENAI_API_KEY=your_openai_api_key
+	GOOGLE_CSE_ID=your_google_cse_id
+	GOOGLE_API_KEY=your_google_api_key
+	REDDIT_CLIENT_ID=your_reddit_client_id
+	REDDIT_CLIENT_SECRET=your_reddit_client_secret
+	REDDIT_USER_AGENT=your_reddit_user_agent
+	```
 
 ## Usage
 
-### Running the Application
+### Quick Start
 
-You can run the application from the command line:
-`python src/main.py`
+1. **Activate your virtual environment:**
+   ```sh
+   source venv/bin/activate
+   ```
 
-Alternatively, you can run it using gunicorn for production environments:
-`gunicorn -w 4 src.main:app
-`
-The AI Judge is now live and can be accessed via HTTP endpoints.
+2. **Ask a question:**
+   ```sh
+   python src/cli/main.py --query_text "What happens when a creature dies?"
+   ```
 
-### Querying the Judge
+3. **That's it!** The AI Judge will query multiple sources and give you a comprehensive answer.
 
-You can input your query either directly through the command line or by interacting with the provided API.
+### Command Line Usage
 
-Example usage:
-
+#### Basic Query
 ```bash
-python src/main.py --query_text "I have a creature with the following text: Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand. I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."
+# Ask a simple question
+python src/cli/main.py --query_text "What happens when a creature dies?"
+
+# Ask a complex rules question
+python src/cli/main.py --query_text "If I have a creature with an equipment on it, and an opponent gains control of the creature, what happens?"
 ```
 
-### Project Structure
+#### Advanced Options
+```bash
+# Run test suite
+python src/cli/main.py --test_mode --start 0 --end 5
 
-- `src/`: Contains the source code for querying, processing, and generating responses.
-- `utils/`: Contains helper functions like querying Google, Reddit, and managing the RAG database.
-- `.env`: Configuration file containing API keys and other sensitive information.
-- `requirements.txt`: List of Python dependencies.
+# Refresh the RAG database
+python src/cli/main.py --refresh_db
 
-### Future Improvements
+# Customize Reddit search
+python src/cli/main.py --query_text "Your question" --subreddit "mtgrules" --limit 20
+```
 
-- Expand the search size so that more reddit and google results can be returned.
-- Improve search criteria for Reddit
-- Improve response accuracy by fine-tuning the LLM on more specific MTG scenarios.
-	- I believe there are comprehension issues with Magic rules, possibly caused by words having multiple meanings. For example, "Explore" is a Magic keyword but also a real English word.
-- Add support for real-time querying via a web interface.
+#### All Available Options
+```bash
+python src/cli/main.py --help
+```
 
-### Contributing
+### Programmatic Usage
+
+#### Using the CLI Programmatically
+```python
+from src.cli.main import MTGJudgeCLI
+
+# Initialize the CLI
+cli = MTGJudgeCLI()
+
+# Ask a single question
+result = cli.run_single_query("What happens when a creature dies?")
+print(result['final_answer'])
+
+# Run test suite programmatically
+results = cli.run_test_suite(start=0, end=5)
+for result in results:
+    print(f"Q: {result['query']}")
+    print(f"A: {result['response']}\n")
+```
+
+#### Using Individual Services
+```python
+from src.core.synthesis_service import SynthesisService
+from src.core.rag_service import RAGService
+from src.external.google_client import GoogleClient
+from src.external.reddit_client import RedditClient
+
+# Initialize services
+synthesis = SynthesisService()
+rag = RAGService()
+google = GoogleClient()
+reddit = RedditClient()
+
+# Query individual sources
+rag_response = rag.query("Your question here")
+google_response = google.search("Your question here")
+reddit_response = reddit.search("Your question here")
+
+# Synthesize the final answer
+final_answer = synthesis.synthesize_response(
+    rag_response, google_response, reddit_response, "Your question here"
+)
+print(final_answer)
+```
+
+### Web Interface
+
+You can also use the Streamlit web interface:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+This provides a user-friendly web interface for asking questions.
+
+## Examples
+
+### Example 1: Simple Rules Question
+```bash
+python src/cli/main.py --query_text "What happens when a creature dies?"
+```
+
+**Output**: The AI will query the MTG rules database, search Reddit discussions, and Google for relevant information, then synthesize a comprehensive answer.
+
+### Example 2: Complex Interaction
+```bash
+python src/cli/main.py --query_text "If I have a creature with an equipment on it, and an opponent gains control of the creature, what happens?"
+```
+
+**Output**: Detailed explanation of equipment rules, control changes, and how they interact.
+
+### Example 3: Programmatic Usage
+```python
+from src.cli.main import MTGJudgeCLI
+
+cli = MTGJudgeCLI()
+result = cli.run_single_query("Can I counter a spell that can't be countered?")
+print(result['final_answer'])
+```
+
+### Example 4: Using Individual Services
+```python
+from src.core.synthesis_service import SynthesisService
+
+# Just synthesize responses without querying
+synthesis = SynthesisService()
+final_answer = synthesis.synthesize_response(
+    rag_response="Rules from database...",
+    google_response="Google search results...", 
+    reddit_response="Reddit discussions...",
+    query_text="Your question"
+)
+```
+
+## Project Structure
+
+The project follows a clean, service-based architecture with clear separation of concerns:
+
+```
+mtg_judgebot/
+├── src/                          # 🧠 Source code
+│   ├── core/                    # Core business logic
+│   │   ├── synthesis_service.py # Answer synthesis
+│   │   ├── rag_service.py       # RAG database operations
+│   │   └── indexers.py         # Database indexing
+│   ├── external/                # External API integrations
+│   │   ├── google_client.py    # Google Search API
+│   │   ├── reddit_client.py    # Reddit API
+│   │   └── openai_client.py    # OpenAI API
+│   ├── cli/                     # Command-line interface
+│   │   └── main.py             # CLI entry point
+│   └── utils/                   # Utility functions
+├── data/                        # 📊 Data storage
+│   ├── raw_docs/               # Raw documents
+│   ├── indices/                # FAISS indices
+│   └── tests/                   # Test data
+├── streamlit_app.py            # 🌐 Web interface
+├── requirements.txt            # Dependencies
+└── .env                       # Configuration
+```
+
+### Key Components
+
+- **`src/core/`**: Contains the heart of your application - business logic that makes the MTG judge work
+- **`src/external/`**: Handles all external service communications (Google, Reddit, OpenAI)
+- **`src/cli/`**: Command-line interface for easy interaction
+- **`data/`**: Organized data storage with clear data flow
+- **`streamlit_app.py`**: User-friendly web interface
+
+### Benefits of This Structure
+
+✅ **Separation of Concerns**: Each module has a single responsibility  
+✅ **Testability**: Easy to unit test individual components  
+✅ **Scalability**: Easy to add new features without affecting existing code  
+✅ **Maintainability**: Clear boundaries make debugging easier  
+✅ **Reusability**: Core logic can be used by CLI, web app, or API
+
+## Future Improvements
+
+### Short Term
+- **Enhanced Search**: Expand search size for more Reddit and Google results
+- **Better Reddit Filtering**: Improve search criteria for more relevant Reddit discussions
+- **Response Quality**: Fine-tune the LLM on specific MTG scenarios for better accuracy
+
+### Medium Term
+- **REST API**: Add a proper REST API layer for programmatic access
+- **Caching**: Implement response caching to reduce API costs
+- **Logging**: Add comprehensive logging and monitoring
+- **Testing**: Add unit tests for all service components
+
+### Long Term
+- **Fine-tuning**: Train the LLM specifically on MTG rules to handle edge cases better
+- **Real-time Updates**: Automatically update the rules database when new sets are released
+- **Community Features**: Allow users to rate answers and suggest improvements
+- **Mobile App**: Create a mobile interface for on-the-go rule checking
+
+### Technical Debt
+- **Configuration Management**: Centralize all configuration in a proper settings system
+- **Error Handling**: Add comprehensive error handling and recovery
+- **Documentation**: Add API documentation and developer guides
+
+## Contributing
 
 Contributions are welcome! Please fork the repository, create a new branch, and submit a pull request.
 
-### License
+## License
 
 This project is licensed under the MIT License.

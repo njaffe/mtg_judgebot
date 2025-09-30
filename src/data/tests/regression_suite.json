@@ -1,0 +1,32 @@
+[
+    {
+        "test_idx": 0,
+        "query": "If I have a creature with an equipment on it, and an opponent gains control of the creature, what happens?"
+    }, 
+    {
+        "test_idx": 1,
+        "query": "I have a creature with the following text: 'Whenever Ghost of Ramirez DePietro deals combat damage to a player, choose up to one target card in a graveyard that was discarded or put there from a library this turn. Put that card into its owner's hand.' I have another creature with the text: 'Whenever one or more Pirates you control deal damage to a player, Francisco explores.' Can I return a card put into my graveyard by the explore ability with the first ability? Ramirez is a pirate."
+    },
+    {
+        "test_idx": 2,
+        "query": "Can I put Misty Rainforest in a Dimir commander deck? It doesn't have any color pips on the card but searches for a Forrest which is green and the rules text about identity isn't clear to me if the word Forrest counts as green identity."
+    },
+    {
+        "test_idx": 3,
+        "query": "new to MTG here so the rules might be different to other formats but I'm talking about EDH here. Might be best explained with an example. It is my turn and I cast Farewell. If there are no responses to Farewell, I want to cast something like Galadriel's Dismissal to save my creatures from being exiled. Is this possible? If yes, how? The way I understand it, I can only cast Dismissal after casting Farewell and when I pass priority, I would have lost my chance."
+    },
+    {
+        "test_idx": 4,
+        "query": "Can you target a creature in your graveyard that has shroud with a spell like Animate Dead?"
+    },
+    {
+        "test_idx": 5,
+        "query": "Lands come in tapped effect and lands come into play untapped effect."
+    }
+    , 
+    {
+        "test_idx": 6,
+        "query": "Humility + Opalescence + Leyline of the Void. What happens to the Humility and Opalescence? Do they get exiled or do they stay on the battlefield?"
+    }
+
+]
