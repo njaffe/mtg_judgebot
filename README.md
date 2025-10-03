@@ -232,46 +232,6 @@ mtg_judgebot/
 └── .env                       # Configuration
 ```
 
-### Key Components
-
-- **`src/core/`**: Contains the heart of your application - business logic that makes the MTG judge work
-- **`src/external/`**: Handles all external service communications (Google, Reddit, OpenAI)
-- **`src/cli/`**: Command-line interface for easy interaction
-- **`data/`**: Organized data storage with clear data flow
-- **`streamlit_app.py`**: User-friendly web interface
-
-### Benefits of This Structure
-
-✅ **Separation of Concerns**: Each module has a single responsibility  
-✅ **Testability**: Easy to unit test individual components  
-✅ **Scalability**: Easy to add new features without affecting existing code  
-✅ **Maintainability**: Clear boundaries make debugging easier  
-✅ **Reusability**: Core logic can be used by CLI, web app, or API
-
-## Future Improvements
-
-### Short Term
-- **Enhanced Search**: Expand search size for more Reddit and Google results
-- **Better Reddit Filtering**: Improve search criteria for more relevant Reddit discussions
-- **Response Quality**: Fine-tune the LLM on specific MTG scenarios for better accuracy
-
-### Medium Term
-- **REST API**: Add a proper REST API layer for programmatic access
-- **Caching**: Implement response caching to reduce API costs
-- **Logging**: Add comprehensive logging and monitoring
-- **Testing**: Add unit tests for all service components
-
-### Long Term
-- **Fine-tuning**: Train the LLM specifically on MTG rules to handle edge cases better
-- **Real-time Updates**: Automatically update the rules database when new sets are released
-- **Community Features**: Allow users to rate answers and suggest improvements
-- **Mobile App**: Create a mobile interface for on-the-go rule checking
-
-### Technical Debt
-- **Configuration Management**: Centralize all configuration in a proper settings system
-- **Error Handling**: Add comprehensive error handling and recovery
-- **Documentation**: Add API documentation and developer guides
-
 ## Contributing
 
 Contributions are welcome! Please fork the repository, create a new branch, and submit a pull request.
