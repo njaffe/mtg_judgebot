@@ -211,7 +211,7 @@ The project follows a clean, service-based architecture with clear separation of
 
 ```
 mtg_judgebot/
-├── src/                          # 🧠 Source code
+├── src/                          # Source code
 │   ├── core/                    # Core business logic
 │   │   ├── synthesis_service.py # Answer synthesis
 │   │   ├── rag_service.py       # RAG database operations
@@ -223,11 +223,11 @@ mtg_judgebot/
 │   ├── cli/                     # Command-line interface
 │   │   └── main.py             # CLI entry point
 │   └── utils/                   # Utility functions
-├── data/                        # 📊 Data storage
+├── data/                        # Data storage
 │   ├── raw_docs/               # Raw documents
 │   ├── indices/                # FAISS indices
 │   └── tests/                   # Test data
-├── streamlit_app.py            # 🌐 Web interface
+├── streamlit_app.py            # Web interface
 ├── requirements.txt            # Dependencies
 └── .env                       # Configuration
 ```
