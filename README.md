@@ -166,44 +166,6 @@ streamlit run streamlit_app.py
 
 This provides a user-friendly web interface for asking questions.
 
-## Examples
-
-### Example 1: Simple Rules Question
-```bash
-python src/cli/main.py --query_text "What happens when a creature dies?"
-```
-
-**Output**: The AI will query the MTG rules database, search Reddit discussions, and Google for relevant information, then synthesize a comprehensive answer.
-
-### Example 2: Complex Interaction
-```bash
-python src/cli/main.py --query_text "If I have a creature with an equipment on it, and an opponent gains control of the creature, what happens?"
-```
-
-**Output**: Detailed explanation of equipment rules, control changes, and how they interact.
-
-### Example 3: Programmatic Usage
-```python
-from src.cli.main import MTGJudgeCLI
-
-cli = MTGJudgeCLI()
-result = cli.run_single_query("Can I counter a spell that can't be countered?")
-print(result['final_answer'])
-```
-
-### Example 4: Using Individual Services
-```python
-from src.core.synthesis_service import SynthesisService
-
-# Just synthesize responses without querying
-synthesis = SynthesisService()
-final_answer = synthesis.synthesize_response(
-    rag_response="Rules from database...",
-    google_response="Google search results...", 
-    reddit_response="Reddit discussions...",
-    query_text="Your question"
-)
-```
 
 ## Project Structure
 
