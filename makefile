@@ -1,23 +1,19 @@
-# Makefile
+.PHONY: up down logs rebuild cli proxy-health fmt
 
-.PHONY: install run refresh-db
+up:
+\tdocker compose up --build
 
-# Install Python dependencies
-install:
-	pip install -r requirements.txt
+down:
+\tdocker compose down
 
-# Run the main query script
-run:
-	python src/main.py
+logs:
+\tdocker compose logs -f
 
-# Refresh the RAG database (rebuild FAISS index)
-refresh-db:
-	python src/create_database_rag.py
+rebuild:
+\tdocker compose build --no-cache
 
-# Run with CLI args (example query)
-run-query:
-	python src/main.py --query_text "What are the latest Magic: The Gathering tournament rules?"
+cli:
+\tdocker compose exec app python src/cli/main.py --query_text "How does Blood Moon interact with Urborg?"
 
-# Run with a query file (replace query.txt with your actual file)
-run-file:
-	python src/main.py --file_path data/query.txt
+proxy-health:
+\tcurl -s http://localhost:8080/health || true

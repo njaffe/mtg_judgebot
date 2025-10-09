@@ -41,9 +41,8 @@ class MTGJudgeCLI:
         self.indexer = DatabaseIndexer()
         
         # Test suite path
-        self.test_file_path = os.path.join(
-            os.path.dirname(__file__), '..', 'data', 'tests', 'regression_suite.json'
-        )
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        self.test_file_path = os.path.join(repo_root, 'data', 'tests', 'regression_suite.json')
     
     def refresh_rag_database(self):
         """Refresh the RAG database from raw documents."""
@@ -94,12 +93,23 @@ class MTGJudgeCLI:
         combined_reddit = f"[Reddit API]\n{reddit_api_response}\n\n[Reddit via Google]\n{reddit_google_response}"
         
         print("\nSynthesizing final answer...")
-        return self.synthesis_service.synthesize_full_response(
+        final = self.synthesis_service.synthesize_full_response(
             rag_response=rag_response,
             google_response=google_response,
             reddit_response=combined_reddit,
             query_text=query_text
         )
+        print(f"Final response: {final['final_answer']}")
+    
+        usage = final.get("llm_usage", {})
+        if usage:
+            print(
+                f"Usage: total={usage.get('total_tokens', 0)} "
+                f"(in {usage.get('prompt_tokens', 0)} / out {usage.get('completion_tokens', 0)}) | "
+                f"latency={usage.get('latency_ms', 0)}ms | cost=${usage.get('cost_usd', 0):.6f}"
+            )
+
+        return final
     
     def run_test_suite(self, start: Optional[int] = None, end: Optional[int] = None) -> List[Dict]:
         """
@@ -206,10 +216,8 @@ class MTGJudgeCLI:
             print("\nRunning in test mode with predefined queries...\n")
             results = self.run_test_suite(start, end)
             today_date = datetime.now().strftime("%Y-%m-%d")
-            output_file = os.path.join(
-                os.path.dirname(__file__), '..', 'data', 'tests', 
-                f'test_results_{today_date}.json'
-            )
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            output_file = os.path.join(repo_root, 'data', 'tests', f'test_results_{today_date}.json')
             self.write_results_to_file(results, output_file)
         else:
             print("\nRunning single query...\n")
@@ -262,3 +270,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+## example usage: python src/cli/main.py --query_text "What happens when a creature dies?"

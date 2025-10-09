@@ -1,0 +1,11 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+data/indices/
+data/tests/test_results_*.json
+.streamlit/
