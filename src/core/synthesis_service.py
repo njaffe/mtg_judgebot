@@ -1,10 +1,9 @@
 """
-Synthesis Service for MTG Judge Bot (V2 – proxy-aware)
+Synthesis Service for MTG Judge Bot (Ollama-based)
 
 This module handles the synthesis of responses from multiple sources (RAG, Google, Reddit)
-into a single, coherent answer. All LLM calls are funneled through the adapter
-`src.external.openai_client.chat(...)`, which decides at runtime whether to call
-the FastAPI proxy (V2) or OpenAI directly (V1) based on environment flags.
+into a single, coherent answer. All LLM calls are funneled through the Ollama client
+`src.external.ollama_client.chat(...)` for local model inference.
 """
 
 from __future__ import annotations
@@ -17,7 +16,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Single integration point for LLM calls
-from src.external import openai_client
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from src.external import ollama_client
 
 
 class SynthesisService:
@@ -25,10 +27,9 @@ class SynthesisService:
     Service responsible for synthesizing responses from multiple sources.
 
     Notes:
-    - No direct vendor SDK usage here. The adapter handles:
-      * proxy vs direct routing (USE_LLM_PROXY)
-      * vendor/model selection (defaults in proxy or env)
-      * usage metadata (latency/tokens/cost)
+    - Uses Ollama client for local model inference
+    - Handles model selection and usage metadata (latency/tokens/cost)
+    - No external API costs (runs locally)
     """
 
     def __init__(
@@ -42,13 +43,13 @@ class SynthesisService:
         Initialize the synthesis service.
 
         Args:
-            default_model: Preferred model (e.g., "gpt-4o-mini"); if None, proxy/app defaults apply.
-            default_vendor: "openai" | "anthropic" | None (use proxy default if None)
+            default_model: Preferred Ollama model (e.g., "llama3.2", "mistral"); if None, uses OLLAMA_DEFAULT_MODEL.
+            default_vendor: Ignored (always uses Ollama)
             temperature: Generation temperature
             max_tokens: Max completion tokens
         """
-        self.default_model = default_model or os.getenv("LLM_DEFAULT_MODEL", None)
-        self.default_vendor = default_vendor or os.getenv("LLM_DEFAULT_VENDOR", None)
+        self.default_model = default_model or os.getenv("LLM_DEFAULT_MODEL", "llama3:latest")
+        self.default_vendor = default_vendor or os.getenv("LLM_DEFAULT_VENDOR", "ollama")
         self.temperature = temperature
         self.max_tokens = max_tokens
 
@@ -75,8 +76,8 @@ class SynthesisService:
             {"role": "user", "content": prompt},
         ]
 
-        # Route through the adapter — proxy or direct based on env flags
-        resp = openai_client.chat(
+        # Route through the Ollama client
+        resp = ollama_client.chat(
             messages=messages,
             model=self.default_model,
             vendor=self.default_vendor,
@@ -131,7 +132,7 @@ class SynthesisService:
             {"role": "user", "content": prompt},
         ]
 
-        resp = openai_client.chat(
+        resp = ollama_client.chat(
             messages=messages,
             model=self.default_model,
             vendor=self.default_vendor,
@@ -150,3 +151,7 @@ class SynthesisService:
             "reddit": reddit_response,
             "llm_usage": usage_meta,  # latency/tokens/cost if proxy or wrapped direct call
         }
+
+if __name__ == "__main__":
+    ss = SynthesisService()
+    print(ss.synthesize_response(rag_response="", google_response="", reddit_response="", query_text="What is the capital of France?"))

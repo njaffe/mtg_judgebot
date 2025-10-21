@@ -21,12 +21,14 @@ from pydantic import BaseModel
 from models import ChatRequest, ChatResponse, Choice, Message, Usage
 import cache as cache_mod
 import metering
-from llm_vendors import call_openai, call_anthropic, cost_usd
+from llm_vendors import call_openai, call_anthropic, call_ollama, cost_usd
 
 app = FastAPI(title="JudgeBot LLM Proxy", version="0.1.0")
 
-DEFAULT_VENDOR = os.getenv("LLM_DEFAULT_VENDOR", "openai")
-DEFAULT_MODEL = os.getenv("LLM_DEFAULT_MODEL", "gpt-4o-mini")
+# DEFAULT_VENDOR = os.getenv("LLM_DEFAULT_VENDOR", "openai")
+# DEFAULT_MODEL = os.getenv("LLM_DEFAULT_MODEL", "gpt-4o-mini")
+DEFAULT_VENDOR = os.getenv("LLM_DEFAULT_VENDOR", "ollama")
+DEFAULT_MODEL = os.getenv("LLM_DEFAULT_MODEL", "llama3")
 
 # --- Trivial auth stub (replace with JWT or header parsing later)
 class User(BaseModel):
@@ -72,6 +74,8 @@ async def chat(req: ChatRequest, user: User = Depends(get_user)):
             result = await call_openai(model, [m.model_dump() for m in req.messages], req.temperature, req.max_tokens or 512)
         elif vendor == "anthropic":
             result = await call_anthropic(model, [m.model_dump() for m in req.messages], req.temperature, req.max_tokens or 512)
+        elif vendor == "ollama":
+            result = await call_ollama(model, [m.model_dump() for m in req.messages], req.temperature, req.max_tokens or 512)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported vendor: {vendor}")
     except Exception as e:
