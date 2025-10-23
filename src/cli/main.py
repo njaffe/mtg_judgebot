@@ -42,7 +42,7 @@ class MTGJudgeCLI:
         
         # Test suite path
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        self.test_file_path = os.path.join(repo_root, 'data', 'tests', 'regression_suite.json')
+        self.test_file_path = os.path.join(repo_root,'src', 'data', 'tests', 'regression_suite.json')
     
     def refresh_rag_database(self):
         """Refresh the RAG database from raw documents."""
@@ -217,7 +217,7 @@ class MTGJudgeCLI:
             results = self.run_test_suite(start, end)
             today_date = datetime.now().strftime("%Y-%m-%d")
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-            output_file = os.path.join(repo_root, 'data', 'tests', f'test_results_{today_date}.json')
+            output_file = os.path.join(repo_root, 'src', 'data', 'tests', f'test_results_{today_date}.json')
             self.write_results_to_file(results, output_file)
         else:
             print("\nRunning single query...\n")
