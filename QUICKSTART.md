@@ -78,6 +78,10 @@ pip install -r requirements.txt
 ```bash
 python src/cli/main.py --query_text "What happens if I have a Blood Moon and an Urborg, Tomb of Yawgmoth?"
 ```
+Or run in test mode to run regression suite:
+```bash
+python src/cli/main.py --test_mode --start 0 --end 5
+```
 
 ### (c) Refresh the RAG database (optional):
 ```bash
