@@ -39,6 +39,7 @@ def _estimate_tokens(text: str) -> int:
     return max(len(text) // 4, 1)
 
 
+
 def chat(
     *,
     messages: List[Dict[str, str]],
@@ -50,76 +51,85 @@ def chat(
     metadata: Optional[Dict[str, Any]] = None,  # Ignored for Ollama
 ) -> Dict[str, Any]:
     """
-    Call Ollama API for chat completion.
-
-    Args:
-        messages: OpenAI-style messages [{"role":"system"|"user"|"assistant","content":"..."}]
-        model: Ollama model name (None = use DEFAULT_MODEL)
-        vendor: Ignored (always "ollama")
-        temperature: sampling temperature
-        max_tokens: max completion tokens
-        use_cache: Ignored (Ollama doesn't have built-in caching)
-        metadata: Ignored
+    Call Ollama API for chat completion by converting messages into a single prompt
+    and using /api/generate (non-streaming) for a one-shot completion.
 
     Returns:
-        dict in proxy shape (see module docstring)
+        dict in your existing proxy shape.
     """
     chosen_model = model or DEFAULT_MODEL or "llama3:latest"
     start_time = time.time()
-    
+
+    # Convert messages to a single prompt for /api/generate
+    prompt_parts = []
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "system":
+            prompt_parts.append(f"System: {content}")
+        elif role == "user":
+            prompt_parts.append(f"User: {content}")
+        elif role == "assistant":
+            prompt_parts.append(f"Assistant: {content}")
+        else:
+            # Unknown roles are included verbatim but tagged for transparency
+            prompt_parts.append(f"{role.capitalize() or 'Unknown'}: {content}")
+
+    # Encourage the model to answer as the assistant
+    full_prompt = "\n\n".join(prompt_parts).strip() + "\n\nAssistant:"
+
+    generate_payload = {
+        "model": chosen_model,
+        "prompt": full_prompt,
+        "stream": False,  # single JSON response (easier to handle)
+        "options": {
+            "temperature": temperature,
+            # Only include num_predict if max_tokens is truthy
+            **({"num_predict": max_tokens} if max_tokens else {}),
+        },
+    }
+
+    # Use a session and ignore proxy env vars so localhost calls don't get hijacked
+    session = requests.Session()
+    session.trust_env = False
+
     try:
-        # Convert messages to a single prompt for Ollama
-        # Ollama's /api/generate expects a single prompt string
-        prompt_parts = []
-        for msg in messages:
-            role = msg["role"]
-            content = msg["content"]
-            if role == "system":
-                prompt_parts.append(f"System: {content}")
-            elif role == "user":
-                prompt_parts.append(f"User: {content}")
-            elif role == "assistant":
-                prompt_parts.append(f"Assistant: {content}")
-        
-        # Join all parts into a single prompt
-        full_prompt = "\n\n".join(prompt_parts) + "\n\nAssistant:"
-        
-        # Use /api/generate endpoint with the combined prompt
-        generate_payload = {
-            "model": chosen_model,
-            "prompt": full_prompt,
-            "stream": False,
-            "options": {
-                "temperature": temperature,
-                "num_predict": max_tokens,
-            }
-        }
-        
-        response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json=generate_payload,
-            timeout=120  # Ollama can be slower than cloud APIs
-        )
-        response.raise_for_status()
-        
-        result = response.json()
-        
-        # Extract response content
+        resp = session.post(f"{OLLAMA_BASE_URL}/api/generate", json=generate_payload, timeout=120)
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            # Try to surface the server's error body for quick diagnosis
+            body = ""
+            try:
+                body = resp.text
+            except Exception:
+                pass
+            # Common helpful hint for 404: model not present or wrong tag
+            if resp.status_code == 404:
+                raise RuntimeError(
+                    f"Ollama API returned 404 for model '{chosen_model}'. "
+                    f"Is the model installed? Try:  ollama pull {chosen_model}\n"
+                    f"Server said: {body}"
+                ) from e
+            raise RuntimeError(f"Ollama API returned {resp.status_code}: {body}") from e
+
+        result = resp.json()
+
+        # Ollama /api/generate returns the completion in "response"
         content = result.get("response", "")
-        
-        # Calculate timing
+        # (Some versions also return "done", "total_duration", etc.—kept in result if you need it.)
+
+        # Timing & rough token accounting
         latency_ms = int((time.time() - start_time) * 1000)
-        
-        # Estimate token usage (Ollama doesn't always return usage stats)
-        prompt_text = "\n".join([msg["content"] for msg in messages])
+        prompt_text = "\n".join([m.get("content", "") for m in messages])
         prompt_tokens = _estimate_tokens(prompt_text)
         completion_tokens = _estimate_tokens(content)
         total_tokens = prompt_tokens + completion_tokens
-        
-        # Ollama is free to run locally, so cost is 0
+
+        # Local inference ==> $0 cost
         cost_usd = 0.0
-        
-        # Build proxy-like response
+
+        # Normalize to your existing return shape
         return {
             "model": chosen_model,
             "vendor": "ollama",
@@ -135,11 +145,14 @@ def chat(
             },
             "cache_hit": False,
         }
-        
-    except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"Ollama API call failed: {str(e)}")
+
+    except requests.RequestException as e:
+        # Network/connection issues, timeouts, etc.
+        raise RuntimeError(f"Ollama API call failed: {e}") from e
     except Exception as e:
-        raise RuntimeError(f"Unexpected error calling Ollama: {str(e)}")
+        # Anything unexpected—surface it cleanly
+        raise RuntimeError(f"Unexpected error calling Ollama: {e}") from e
+
 
 if __name__ == "__main__":
     print(chat(messages=[{"role": "user", "content": "What is the capital of France?"}]))
