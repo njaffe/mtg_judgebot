@@ -1,19 +1,31 @@
-.PHONY: up down logs rebuild cli proxy-health fmt
+.PHONY: setup run test index update-rules ui
 
-up:
-\tdocker compose up --build
+# First-time setup: create venv and install dependencies
+setup:
+	python3 -m venv venv
+	./venv/bin/pip install -r requirements.txt
+	@echo "\n✓ Setup complete. Activate with: source venv/bin/activate"
+	@echo "  Then copy .env.sample to .env and add your ANTHROPIC_API_KEY."
 
-down:
-\tdocker compose down
+# Run a single query (pass QUERY="..." on the command line)
+run:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/python src/cli/main.py --query_text "$(QUERY)"
 
-logs:
-\tdocker compose logs -f
+# Run the regression test suite
+test:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/python src/cli/main.py --test_mode
 
-rebuild:
-\tdocker compose build --no-cache
+# Rebuild the FAISS index from the Comprehensive Rules
+index:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/python -c "\
+		from src.core.indexers import DatabaseIndexer; \
+		DatabaseIndexer(faiss_index_path='./data/indices', data_path='./src/data', raw_docs_path='raw_docs') \
+		.create_database_from_large_file()"
 
-cli:
-\tdocker compose exec app python src/cli/main.py --query_text "How does Blood Moon interact with Urborg?"
+# Download the latest Comprehensive Rules
+update-rules:
+	./venv/bin/python scripts/update_rules.py
 
-proxy-health:
-\tcurl -s http://localhost:8080/health || true
+# Launch the Streamlit web UI
+ui:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/streamlit run streamlit_app.py

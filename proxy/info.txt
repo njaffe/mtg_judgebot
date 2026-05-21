@@ -1,9 +1,0 @@
-What each file in proxy/ does
-- app.py – FastAPI app. Exposes:
-- GET /health – health check
-- POST /v1/chat/completions – routes to vendor (OpenAI/Anthropic), returns proxy-shaped response, handles cache + metering.
-- models.py – Pydantic schemas for request/response.
-- cache.py – Exact-response cache using Redis; deterministic keying on normalized payload.
-- metering.py – Writes per-call metrics to Redis (cost, tokens, latency) + simple aggregates.
-- llm_vendors.py – Thin vendor clients and cost table; estimates tokens if vendor doesn’t return them.
-- requirements.txt – Proxy-only deps (FastAPI, Uvicorn, httpx, redis, python-dotenv, tiktoken).
