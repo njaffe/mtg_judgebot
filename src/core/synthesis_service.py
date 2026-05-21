@@ -1,129 +1,128 @@
 """
 Synthesis Service for MTG Judge Bot
 
-This module handles the synthesis of responses from multiple sources (RAG, Google, Reddit)
-into a single, coherent answer.
+This module handles the synthesis of responses from multiple sources (RAG, card data,
+and optionally Google/Reddit) into a single, coherent answer. Uses the Anthropic client
+for high-quality rules reasoning.
 """
+
+from __future__ import annotations
 
 import os
 from typing import Dict, Any, Optional
-from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
+
+from src.external import anthropic_client
+
+
+SYSTEM_PROMPT = (
+    "You are an expert Magic: The Gathering certified rules judge providing a final ruling.\n\n"
+    "Instructions:\n"
+    "- The Comprehensive Rules analysis and card Oracle text are your PRIMARY authority. "
+    "Trust these over any other sources.\n"
+    "- If supplementary web/community sources are provided, use them only to add context "
+    "or detail. Never let them contradict the official rules.\n"
+    "- Reason step-by-step for complex interactions involving layers, timestamps, "
+    "replacement effects, continuous effects, or priority.\n"
+    "- ONLY cite rule numbers that appeared in the rules analysis. Never invent or guess "
+    "rule numbers.\n"
+    "- Be precise and concise. State the ruling clearly, then explain the reasoning."
+)
 
 
 class SynthesisService:
     """
     Service responsible for synthesizing responses from multiple sources.
     """
-    
-    def __init__(self, openai_api_key: Optional[str] = None):
-        """
-        Initialize the synthesis service.
-        
-        Args:
-            openai_api_key: OpenAI API key. If None, will try to load from environment.
-        """
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
-        if not self.openai_api_key:
-            raise ValueError("OpenAI API key is required")
-        
-        self.client = OpenAI(api_key=self.openai_api_key)
-    
-    def synthesize_response(
-        self, 
-        rag_response: str, 
-        google_response: str, 
-        reddit_response: str, 
-        query_text: str
-    ) -> str:
-        """
-        Synthesize responses from multiple sources into a single answer.
-        
-        Args:
-            rag_response: Response from RAG database
-            google_response: Response from Google search
-            reddit_response: Response from Reddit search
-            query_text: Original user query
-            
-        Returns:
-            Synthesized response string
-        """
-        prompt = self._create_synthesis_prompt(
-            rag_response, google_response, reddit_response, query_text
-        )
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful Magic: The Gathering rules assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1000,
-            temperature=0.3,
-        )
-        
-        return response.choices[0].message.content
-    
+
+    def __init__(
+        self,
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+    ):
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
     def _create_synthesis_prompt(
-        self, 
-        rag_response: str, 
-        google_response: str, 
-        reddit_response: str, 
-        query_text: str
+        self,
+        rag_response: str,
+        query_text: str,
+        card_data: str = "",
+        google_response: Optional[str] = None,
+        reddit_response: Optional[str] = None,
     ) -> str:
-        """
-        Create the synthesis prompt for the LLM.
-        
-        Args:
-            rag_response: Response from RAG database
-            google_response: Response from Google search
-            reddit_response: Response from Reddit search
-            query_text: Original user query
-            
-        Returns:
-            Formatted prompt string
-        """
-        return (
-            f"You are a Magic: The Gathering rules expert. A user has asked the following question:\n\n"
-            f"{query_text}\n\n"
-            f"You were given information from three sources:\n\n"
-            f"---\nRAG Database Response:\n{rag_response}\n\n"
-            f"---\nGoogle Search Summary:\n{google_response}\n\n"
-            f"---\nReddit Summary:\n{reddit_response}\n\n"
-            f"---\n\n"
-            f"Please write a single clear and authoritative answer to the user's question. "
-            f"Be concise, cite rules when relevant, and explain any ambiguity if needed."
+        """Create the synthesis prompt for the LLM."""
+        parts = [f"=== QUESTION ===\n{query_text}"]
+
+        parts.append(
+            "=== PRIMARY AUTHORITY: COMPREHENSIVE RULES ANALYSIS ===\n"
+            f"{rag_response}"
         )
-    
+
+        if card_data:
+            parts.append(
+                "=== CARD ORACLE TEXT & OFFICIAL RULINGS ===\n"
+                f"{card_data}"
+            )
+
+        if google_response or reddit_response:
+            supplementary = "=== SUPPLEMENTARY CONTEXT (use only to add detail, not to contradict the rules) ==="
+            if google_response:
+                supplementary += f"\n\nWeb Search Results:\n{google_response}"
+            if reddit_response:
+                supplementary += f"\n\nCommunity Discussion:\n{reddit_response}"
+            parts.append(supplementary)
+
+        parts.append(
+            "=== TASK ===\n"
+            "Provide a clear, authoritative ruling based on the sources above. "
+            "If sources conflict, the Comprehensive Rules take precedence."
+        )
+
+        return "\n\n".join(parts)
+
     def synthesize_full_response(
-        self, 
-        rag_response: str, 
-        google_response: str, 
-        reddit_response: str, 
-        query_text: str
+        self,
+        rag_response: str,
+        query_text: str,
+        card_data: str = "",
+        google_response: Optional[str] = None,
+        reddit_response: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Synthesize a full response with all source information.
-        
-        Args:
-            rag_response: Response from RAG database
-            google_response: Response from Google search
-            reddit_response: Response from Reddit search
-            query_text: Original user query
-            
+
         Returns:
-            Dictionary containing final answer and all source responses
+            Dictionary containing final answer and all source responses.
         """
-        final_answer = self.synthesize_response(
-            rag_response, google_response, reddit_response, query_text
+        prompt = self._create_synthesis_prompt(
+            rag_response=rag_response,
+            query_text=query_text,
+            card_data=card_data,
+            google_response=google_response,
+            reddit_response=reddit_response,
         )
-        
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+
+        resp = anthropic_client.chat(
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )
+
+        final_answer = resp["choices"][0]["message"]["content"]
+        usage_meta = resp.get("usage", {})
+
         return {
             "final_answer": final_answer,
             "rag": rag_response,
+            "card_data": card_data,
             "google": google_response,
-            "reddit": reddit_response
+            "reddit": reddit_response,
+            "llm_usage": usage_meta,
         }

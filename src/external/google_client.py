@@ -2,9 +2,11 @@
 Google Client Service for MTG Judge Bot
 
 This module provides a service class for Google Search API integration.
+Uses Ollama for local summarization instead of OpenAI.
 """
 
 import os
+import time
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -20,21 +22,63 @@ class GoogleClient:
     def __init__(self, 
                  google_api_key: Optional[str] = None,
                  google_cse_id: Optional[str] = None,
-                 openai_api_key: Optional[str] = None):
+                 ollama_base_url: Optional[str] = None,
+                 ollama_model: Optional[str] = None):
         """
         Initialize the Google client.
         
         Args:
             google_api_key: Google API key
             google_cse_id: Google Custom Search Engine ID
-            openai_api_key: OpenAI API key for summarization
+            ollama_base_url: Ollama server URL (default: http://localhost:11434)
+            ollama_model: Ollama model for summarization (default: llama3)
         """
         self.google_api_key = google_api_key or os.getenv("GOOGLE_API_KEY")
         self.google_cse_id = google_cse_id or os.getenv("GOOGLE_CSE_ID")
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        self.ollama_base_url = ollama_base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.ollama_model = ollama_model or os.getenv("OLLAMA_DEFAULT_MODEL", "llama3:latest")
         
-        if not all([self.google_api_key, self.google_cse_id, self.openai_api_key]):
-            raise ValueError("Google API key, CSE ID, and OpenAI API key are required")
+        if not all([self.google_api_key, self.google_cse_id]):
+            raise ValueError("Google API key and CSE ID are required")
+    
+    def _summarize_with_ollama(self, prompt: str) -> str:
+        """
+        Use Ollama to summarize content.
+        
+        Args:
+            prompt: The prompt to send to Ollama
+            
+        Returns:
+            Summarized content from Ollama
+        """
+        import requests
+        
+        messages = [
+            {"role": "system", "content": "You are a helpful research assistant."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        payload = {
+            "model": self.ollama_model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": 0.4,
+                "num_predict": 800,
+            }
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.ollama_base_url}/api/chat",
+                json=payload,
+                timeout=120
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get("message", {}).get("content", "")
+        except Exception as e:
+            return f"Error summarizing with Ollama: {str(e)}"
     
     def search(self, query_text: str) -> str:
         """
@@ -47,7 +91,6 @@ class GoogleClient:
             Summarized search results
         """
         import requests
-        from openai import OpenAI
         
         # Perform Google search
         url = "https://www.googleapis.com/customsearch/v1"
@@ -67,7 +110,7 @@ class GoogleClient:
         for idx, item in enumerate(items, 1):
             summaries += f"{idx}. {item.get('title')}\n{item.get('snippet')}\n{item.get('link')}\n\n"
 
-        # Summarize via OpenAI
+        # Summarize via Ollama
         prompt = f"""You are an expert at extracting useful information from search results.
         
 Here is a query: {query_text}
@@ -78,18 +121,7 @@ And here are the top results from Google:
 Please summarize the most relevant and helpful insights in a concise paragraph:
 """
 
-        client = OpenAI(api_key=self.openai_api_key)
-        result = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful research assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=800,
-            temperature=0.4
-        )
-
-        return result.choices[0].message.content
+        return self._summarize_with_ollama(prompt)
     
     def search_reddit(self, query_text: str) -> str:
         """
@@ -102,7 +134,6 @@ Please summarize the most relevant and helpful insights in a concise paragraph:
             Summarized Reddit search results
         """
         import requests
-        from openai import OpenAI
         
         # Specialized Google Search for Reddit posts
         enriched_query = f"{query_text} site:reddit.com (mtgrules OR \"magic the gathering\")"
@@ -120,9 +151,11 @@ Please summarize the most relevant and helpful insights in a concise paragraph:
             return "No relevant Reddit results found via Google."
 
         # Filter for MTG-related content
+        mtg_keywords = ["mtg", "magic", "rules", "graveyard", "card", "creature",
+                        "spell", "commander", "edh", "modern", "standard"]
         mtg_items = [item for item in items if any(
-            keyword in item["title"].lower() for keyword in
-            ["mtg", "magic", "ramirez", "rules", "pirate", "graveyard", "card"]
+            keyword in item.get("title", "").lower() or keyword in item.get("snippet", "").lower()
+            for keyword in mtg_keywords
         )]
 
         if not mtg_items:
@@ -132,7 +165,7 @@ Please summarize the most relevant and helpful insights in a concise paragraph:
         for idx, item in enumerate(mtg_items, 1):
             summaries += f"{idx}. {item.get('title')}\n{item.get('snippet')}\n{item.get('link')}\n\n"
 
-        # Summarize via OpenAI
+        # Summarize via Ollama
         prompt = f"""You are an MTG expert analyzing Google search results from Reddit.
         
 Query: {query_text}
@@ -143,15 +176,4 @@ Here are Reddit posts pulled from Google:
 Summarize any useful rules insight in a concise and clear paragraph:
 """
 
-        client = OpenAI(api_key=self.openai_api_key)
-        result = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful Magic: the Gathering judge assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=800,
-            temperature=0.4
-        )
-
-        return result.choices[0].message.content
+        return self._summarize_with_ollama(prompt)

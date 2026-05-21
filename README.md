@@ -1,203 +1,159 @@
-# Magic: The Gathering AI Judge
+# MTG JudgeBot
 
-An AI-powered tool designed to assist with complex rules scenarios and edge cases in Magic: The Gathering.
+An AI-powered rules judge for Magic: The Gathering. Ask complex rules questions and get accurate, citation-backed rulings grounded in the official Comprehensive Rules.
 
-## Table of Contents
+## How It Works
 
-- Overview
-- Features
-- Installation
-- Usage
-- Project Structure
-- Future Improvements
-- Contributing
-- License
+```
+User Question
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  1. Card Lookup (Scryfall API)          │  ← Oracle text + official rulings
+│  2. Rules Retrieval (FAISS + embeddings)│  ← Top 10 relevant CR sections
+│  3. RAG Answer (Claude Sonnet 4.6)      │  ← Grounded in retrieved rules
+│  4. Synthesis (Claude Sonnet 4.6)       │  ← Final ruling with citations
+└─────────────────────────────────────────┘
+    │
+    ▼
+  Answer with rule citations + step-by-step reasoning
+```
 
-## Overview
+**Key design decisions:**
+- **Embeddings are local** — uses `all-MiniLM-L6-v2` via sentence-transformers. No OpenAI key needed.
+- **Rule-aware chunking** — the CR is parsed by rule number (e.g., 702.16a), not by character count. Subrules stay grouped with their parents.
+- **Anti-hallucination prompting** — the LLM is instructed to only cite rules that appear verbatim in the retrieved context.
+- **Card data from Scryfall** — Oracle text and official rulings are fetched live, so the bot understands what specific cards do.
+- **External sources optional** — Google and Reddit search are available but off by default to keep answers authoritative.
 
-This project implements a Retrieval-Augmented Generation (RAG) system to create an AI “judge” for Magic: The Gathering (MTG). The tool helps players and enthusiasts navigate the complex rules and edge cases that often arise in the game. By leveraging large language models (LLMs) and a comprehensive rules database, this AI judge provides quick and accurate answers to MTG-related queries.
+## Quick Start
 
-The system uses agents within the RAG framework to query various sources, including a custom database of MTG rules, as well as external platforms like Reddit and Google, to gather relevant context and insights. The AI then generates a combined answer, ensuring players have access to both authoritative rules information and community perspectives.
+```bash
+# 1. Clone and enter the project
+git clone https://github.com/your-repo/mtg-judgebot.git
+cd mtg-judgebot
 
-## Features
+# 2. Create virtual environment and install dependencies
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
-- RAG-based query system: Utilizes the entire MTG rules corpus (approximately 148,000 words).
-- Integration with external sources: Queries Reddit and Google for additional context and community insights.
-- Multi-source answer compilation: Combines results from the rules corpus, Reddit, and Google searches for more robust answers.
-- Agent-based architecture: Uses agents as part of the RAG framework to optimize information retrieval and answer generation.
-- Natural language processing: Understands and responds to MTG-specific queries in natural language, providing intuitive answers.
+# 3. Configure API key
+cp .env.sample .env
+# Edit .env and add your Anthropic API key (https://console.anthropic.com)
 
-## Installation
+# 4. Build the FAISS index (one-time, takes ~10 seconds)
+make index
 
-### Prerequisites
+# 5. Ask a question
+make run QUERY="Does deathtouch work with trample?"
+```
 
-- Python 3.7+
-- Environment variables configured (see .env file for API keys)
+Or use the web UI:
+```bash
+make ui
+# Opens at http://localhost:8501
+```
 
-### Steps
+## Project Structure
 
-1. Clone the repository:
-
-	```sh
-	git clone https://github.com/your-repo/mtg-ai-judge.git
-	cd mtg-ai-judge
-	```
-
-2. Create and activate a virtual environment:
-
-	```sh
-	python3 -m venv venv
-	source venv/bin/activate
-	```
-
-3. Install the required packages:
-
-	```sh
-	pip install -r requirements.txt
-	```
-
-4. Set up your environment variables in a `.env` file (refer to the `.env.sample` file in the repo):
-
-	```env
-	OPENAI_API_KEY=your_openai_api_key
-	GOOGLE_CSE_ID=your_google_cse_id
-	GOOGLE_API_KEY=your_google_api_key
-	REDDIT_CLIENT_ID=your_reddit_client_id
-	REDDIT_CLIENT_SECRET=your_reddit_client_secret
-	REDDIT_USER_AGENT=your_reddit_user_agent
-	```
+```
+mtg_judgebot/
+├── src/
+│   ├── core/
+│   │   ├── indexers.py             # Rule-aware CR parser + FAISS indexing
+│   │   ├── rag_service.py          # Embed query → FAISS search → Claude answer
+│   │   └── synthesis_service.py    # Combine RAG + card data → final ruling
+│   ├── external/
+│   │   ├── anthropic_client.py     # Claude API wrapper
+│   │   ├── scryfall_client.py      # Card lookup (Oracle text + rulings)
+│   │   ├── google_client.py        # Google Custom Search (optional)
+│   │   └── reddit_client.py        # Reddit search via PRAW (optional)
+│   ├── cli/
+│   │   └── main.py                 # CLI entry point + query orchestration
+│   └── data/
+│       ├── raw_docs/
+│       │   └── mtg_rules.txt       # Comprehensive Rules (Feb 2025)
+│       └── tests/
+│           ├── regression_suite.json
+│           └── test_results_*.json
+├── data/
+│   └── indices/                    # FAISS index + document store
+├── scripts/
+│   └── update_rules.py             # Download latest CR from Wizards
+├── streamlit_app.py                # Streamlit web UI
+├── makefile                        # Common commands (setup, run, test, etc.)
+├── requirements.txt                # Python dependencies
+├── .env.sample                     # Environment variable template
+└── .env                            # Your local config (gitignored)
+```
 
 ## Usage
 
-### Quick Start
+### CLI
 
-1. **Activate your virtual environment:**
-   ```sh
-   source venv/bin/activate
-   ```
-
-2. **Ask a question:**
-   ```sh
-   python src/cli/main.py --query_text "What happens when a creature dies?"
-   ```
-
-3. **That's it!** The AI Judge will query multiple sources and give you a comprehensive answer.
-
-### Command Line Usage
-
-#### Basic Query
 ```bash
-# Ask a simple question
-python src/cli/main.py --query_text "What happens when a creature dies?"
+# Single question
+python src/cli/main.py --query_text "Can I equip Swiftfoot Boots in response to a kill spell?"
 
-# Ask a complex rules question
-python src/cli/main.py --query_text "If I have a creature with an equipment on it, and an opponent gains control of the creature, what happens?"
+# With external sources enabled
+python src/cli/main.py --query_text "Your question" --enable_external
+
+# Regression test suite
+python src/cli/main.py --test_mode
+
+# Subset of tests
+python src/cli/main.py --test_mode --start 0 --end 3
 ```
 
-#### Advanced Options
-```bash
-# Run test suite
-python src/cli/main.py --test_mode --start 0 --end 5
-
-# Refresh the RAG database
-python src/cli/main.py --refresh_db
-
-# Customize Reddit search
-python src/cli/main.py --query_text "Your question" --subreddit "mtgrules" --limit 20
-```
-
-#### All Available Options
-```bash
-python src/cli/main.py --help
-```
-
-### Programmatic Usage
-
-#### Using the CLI Programmatically
-```python
-from src.cli.main import MTGJudgeCLI
-
-# Initialize the CLI
-cli = MTGJudgeCLI()
-
-# Ask a single question
-result = cli.run_single_query("What happens when a creature dies?")
-print(result['final_answer'])
-
-# Run test suite programmatically
-results = cli.run_test_suite(start=0, end=5)
-for result in results:
-    print(f"Q: {result['query']}")
-    print(f"A: {result['response']}\n")
-```
-
-#### Using Individual Services
-```python
-from src.core.synthesis_service import SynthesisService
-from src.core.rag_service import RAGService
-from src.external.google_client import GoogleClient
-from src.external.reddit_client import RedditClient
-
-# Initialize services
-synthesis = SynthesisService()
-rag = RAGService()
-google = GoogleClient()
-reddit = RedditClient()
-
-# Query individual sources
-rag_response = rag.query("Your question here")
-google_response = google.search("Your question here")
-reddit_response = reddit.search("Your question here")
-
-# Synthesize the final answer
-final_answer = synthesis.synthesize_response(
-    rag_response, google_response, reddit_response, "Your question here"
-)
-print(final_answer)
-```
-
-### Web Interface
-
-You can also use the Streamlit web interface:
+### Web UI
 
 ```bash
 streamlit run streamlit_app.py
 ```
 
-This provides a user-friendly web interface for asking questions.
+Features: question input, source breakdown (RAG, card data, external), usage stats, external sources toggle.
 
+### Makefile Shortcuts
 
-## Project Structure
+| Command | Description |
+|---------|-------------|
+| `make setup` | Create venv and install dependencies |
+| `make run QUERY="..."` | Run a single query |
+| `make test` | Run the regression test suite |
+| `make index` | Rebuild the FAISS index |
+| `make update-rules` | Download the latest Comprehensive Rules |
+| `make ui` | Launch the Streamlit web UI |
 
-The project follows a clean, service-based architecture with clear separation of concerns:
+## Configuration
 
+All configuration is in `.env`. Copy `.env.sample` to get started.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | **Yes** | — | Claude API key for chat/synthesis |
+| `ENABLE_EXTERNAL_SOURCES` | No | `false` | Enable Google/Reddit supplementary search |
+| `FAISS_INDEX_PATH` | No | `./data/indices` | Where the FAISS index is stored |
+| `DATA_PATH` | No | `./src/data` | Where raw documents live |
+| `EMBEDDING_MODEL` | No | `all-MiniLM-L6-v2` | Sentence-transformers model name |
+| `GOOGLE_API_KEY` | No | — | Google Custom Search key (if external enabled) |
+| `GOOGLE_CSE_ID` | No | — | Google Custom Search engine ID |
+| `REDDIT_CLIENT_ID` | No | — | Reddit API client ID (if external enabled) |
+| `REDDIT_CLIENT_SECRET` | No | — | Reddit API client secret |
+
+## Updating the Rules
+
+The Comprehensive Rules are updated with each MTG set release. To update:
+
+```bash
+python scripts/update_rules.py   # Downloads latest CR
+make index                        # Rebuild the FAISS index
 ```
-mtg_judgebot/
-├── src/                          # Source code
-│   ├── core/                    # Core business logic
-│   │   ├── synthesis_service.py # Answer synthesis
-│   │   ├── rag_service.py       # RAG database operations
-│   │   └── indexers.py         # Database indexing
-│   ├── external/                # External API integrations
-│   │   ├── google_client.py    # Google Search API
-│   │   ├── reddit_client.py    # Reddit API
-│   │   └── openai_client.py    # OpenAI API
-│   ├── cli/                     # Command-line interface
-│   │   └── main.py             # CLI entry point
-│   └── utils/                   # Utility functions
-├── data/                        # Data storage
-│   ├── raw_docs/               # Raw documents
-│   ├── indices/                # FAISS indices
-│   └── tests/                   # Test data
-├── streamlit_app.py            # Web interface
-├── requirements.txt            # Dependencies
-└── .env                       # Configuration
-```
 
-## Contributing
+## Cost
 
-Contributions are welcome! Please fork the repository, create a new branch, and submit a pull request.
+Each query costs approximately **$0.007–$0.02** depending on question complexity (Claude Sonnet 4.6 at $3/M input, $15/M output tokens). Embeddings are free (local model).
 
 ## License
 
-This project is licensed under the MIT License.
+MIT

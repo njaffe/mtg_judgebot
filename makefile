@@ -1,23 +1,31 @@
-# Makefile
+.PHONY: setup run test index update-rules ui
 
-.PHONY: install run refresh-db
+# First-time setup: create venv and install dependencies
+setup:
+	python3 -m venv venv
+	./venv/bin/pip install -r requirements.txt
+	@echo "\n✓ Setup complete. Activate with: source venv/bin/activate"
+	@echo "  Then copy .env.sample to .env and add your ANTHROPIC_API_KEY."
 
-# Install Python dependencies
-install:
-	pip install -r requirements.txt
-
-# Run the main query script
+# Run a single query (pass QUERY="..." on the command line)
 run:
-	python src/main.py
+	TOKENIZERS_PARALLELISM=false ./venv/bin/python src/cli/main.py --query_text "$(QUERY)"
 
-# Refresh the RAG database (rebuild FAISS index)
-refresh-db:
-	python src/create_database_rag.py
+# Run the regression test suite
+test:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/python src/cli/main.py --test_mode
 
-# Run with CLI args (example query)
-run-query:
-	python src/main.py --query_text "What are the latest Magic: The Gathering tournament rules?"
+# Rebuild the FAISS index from the Comprehensive Rules
+index:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/python -c "\
+		from src.core.indexers import DatabaseIndexer; \
+		DatabaseIndexer(faiss_index_path='./data/indices', data_path='./src/data', raw_docs_path='raw_docs') \
+		.create_database_from_large_file()"
 
-# Run with a query file (replace query.txt with your actual file)
-run-file:
-	python src/main.py --file_path data/query.txt
+# Download the latest Comprehensive Rules
+update-rules:
+	./venv/bin/python scripts/update_rules.py
+
+# Launch the Streamlit web UI
+ui:
+	TOKENIZERS_PARALLELISM=false ./venv/bin/streamlit run streamlit_app.py

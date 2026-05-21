@@ -155,6 +155,7 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Chroma vector database
 chroma/
 
 # PyCharm
@@ -164,6 +165,26 @@ chroma/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# Project-specific
 *_DEPR.py
 
+# OS / IDE
 .DS_Store
+.idea/
+.vscode/
+
+# Build / data
+data/indices/
+data/tests/test_results_*.json
+
+# Docker
+*.pid
+*.tar
+*.bak
+*.swp
+
+# Streamlit
+.streamlit/
+
+# Redis cache (if persisted locally)
+dump.rdb

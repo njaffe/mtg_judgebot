@@ -2,9 +2,11 @@
 Reddit Client Service for MTG Judge Bot
 
 This module provides a service class for Reddit API integration.
+Uses Ollama for local summarization instead of OpenAI.
 """
 
 import os
+import time
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -21,7 +23,8 @@ class RedditClient:
                  reddit_client_id: Optional[str] = None,
                  reddit_client_secret: Optional[str] = None,
                  reddit_user_agent: Optional[str] = None,
-                 openai_api_key: Optional[str] = None):
+                 ollama_base_url: Optional[str] = None,
+                 ollama_model: Optional[str] = None):
         """
         Initialize the Reddit client.
         
@@ -29,16 +32,57 @@ class RedditClient:
             reddit_client_id: Reddit client ID
             reddit_client_secret: Reddit client secret
             reddit_user_agent: Reddit user agent
-            openai_api_key: OpenAI API key for summarization
+            ollama_base_url: Ollama server URL (default: http://localhost:11434)
+            ollama_model: Ollama model for summarization (default: llama3)
         """
         self.reddit_client_id = reddit_client_id or os.getenv("REDDIT_CLIENT_ID")
         self.reddit_client_secret = reddit_client_secret or os.getenv("REDDIT_CLIENT_SECRET")
         self.reddit_user_agent = reddit_user_agent or os.getenv("REDDIT_USER_AGENT")
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        self.ollama_base_url = ollama_base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.ollama_model = ollama_model or os.getenv("OLLAMA_DEFAULT_MODEL", "llama3:latest")
         
         if not all([self.reddit_client_id, self.reddit_client_secret, 
-                   self.reddit_user_agent, self.openai_api_key]):
-            raise ValueError("Reddit API credentials and OpenAI API key are required")
+                   self.reddit_user_agent]):
+            raise ValueError("Reddit API credentials are required")
+    
+    def _summarize_with_ollama(self, prompt: str) -> str:
+        """
+        Use Ollama to summarize content.
+        
+        Args:
+            prompt: The prompt to send to Ollama
+            
+        Returns:
+            Summarized content from Ollama
+        """
+        import requests
+        
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        payload = {
+            "model": self.ollama_model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": 0.5,
+                "num_predict": 1000,
+            }
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.ollama_base_url}/api/chat",
+                json=payload,
+                timeout=120
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get("message", {}).get("content", "")
+        except Exception as e:
+            return f"Error summarizing with Ollama: {str(e)}"
     
     def search(self, 
                query_text: str,
@@ -60,7 +104,6 @@ class RedditClient:
             Summarized Reddit search results
         """
         import requests
-        from openai import OpenAI
         
         # Perform Reddit search
         auth = requests.auth.HTTPBasicAuth(self.reddit_client_id, self.reddit_client_secret)
@@ -110,16 +153,5 @@ class RedditClient:
             f"Given the above posts, answer the following query:\n\n{query_text}\n\n"
         )
 
-        # Call OpenAI Chat Model
-        client = OpenAI(api_key=self.openai_api_key)
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1000,
-            temperature=0.5
-        )
-
-        return response.choices[0].message.content
+        # Use Ollama for summarization
+        return self._summarize_with_ollama(prompt)
