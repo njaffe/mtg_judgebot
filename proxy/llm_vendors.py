@@ -22,7 +22,10 @@ PRICES = {
         "gpt-4o": {"in": 5.00, "out": 15.00},
     },
     "anthropic": {
-        "claude-3-5-sonnet": {"in": 3.00, "out": 15.00},
+        "claude-sonnet-4-6": {"in": 3.00, "out": 15.00},
+        "claude-sonnet-4-5": {"in": 3.00, "out": 15.00},
+        "claude-haiku-4-5": {"in": 1.00, "out": 5.00},
+        "claude-opus-4-6": {"in": 5.00, "out": 25.00},
     },
     "ollama": {
         "llama3": {"in": 0.0, "out": 0.0},

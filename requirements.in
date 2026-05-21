@@ -39,6 +39,7 @@ dulwich
 durationpy
 exceptiongroup
 executing
+faiss-cpu
 fastapi
 fastavro
 fastjsonschema
@@ -111,6 +112,7 @@ msgpack
 multidict
 mypy-extensions
 nest-asyncio
+anthropic
 nnfs
 numpy
 oauth2client
@@ -177,6 +179,7 @@ ruamel.yaml.clib
 s3transfer
 scikit-learn
 scipy
+sentence-transformers
 shapely
 shellingham
 sip

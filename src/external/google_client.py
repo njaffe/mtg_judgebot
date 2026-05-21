@@ -151,9 +151,11 @@ Please summarize the most relevant and helpful insights in a concise paragraph:
             return "No relevant Reddit results found via Google."
 
         # Filter for MTG-related content
+        mtg_keywords = ["mtg", "magic", "rules", "graveyard", "card", "creature",
+                        "spell", "commander", "edh", "modern", "standard"]
         mtg_items = [item for item in items if any(
-            keyword in item["title"].lower() for keyword in
-            ["mtg", "magic", "ramirez", "rules", "pirate", "graveyard", "card"]
+            keyword in item.get("title", "").lower() or keyword in item.get("snippet", "").lower()
+            for keyword in mtg_keywords
         )]
 
         if not mtg_items:

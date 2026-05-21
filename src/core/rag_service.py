@@ -2,8 +2,8 @@
 RAG Service for MTG Judge Bot
 
 This module provides a service class for RAG database operations using FAISS.
-Embeddings use the OpenAI SDK (direct). Chat completions go through the LLM adapter
-(src.external.openai_client.chat), which can route to the proxy when enabled.
+Embeddings use sentence-transformers (local, no API key needed).
+Chat completions use the Anthropic client for higher-quality rules reasoning.
 """
 
 from __future__ import annotations
@@ -13,22 +13,15 @@ import pickle
 import faiss
 import numpy as np
 from typing import Optional, List, Dict, Any
-from openai import OpenAI
 from dotenv import load_dotenv
 
-# Adapter for chat (proxy-aware)
-from src.external import openai_client
+from src.external import anthropic_client
 
 # Load environment variables
 load_dotenv()
-# After load_dotenv()
-USE_PROXY = os.getenv("USE_LLM_PROXY", "false").lower() == "true"
-PROXY_BASE = os.getenv("PROXY_BASE_URL", "")
-if USE_PROXY:
-    print(f"[LLM ROUTING] Using PROXY at {PROXY_BASE or 'http://localhost:8080'}")
-else:
-    print("[LLM ROUTING] Calling OpenAI directly (V1 mode)")
 
+# Default local embedding model — must match what the indexer used
+DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 
 class RAGService:
@@ -36,32 +29,18 @@ class RAGService:
 
     def __init__(
         self,
-        openai_api_key: Optional[str] = None,
         faiss_index_path: Optional[str] = None,
         embedding_model: Optional[str] = None,
-        default_chat_model: Optional[str] = None,
-        default_chat_vendor: Optional[str] = None,
     ):
-        """
-        Initialize the RAG service.
-
-        Args:
-            openai_api_key: OpenAI API key (for embeddings)
-            faiss_index_path: Path to FAISS index
-            embedding_model: Embedding model name
-            default_chat_model: Preferred chat model (if None, defaults from env/proxy)
-            default_chat_vendor: "openai" | "anthropic" | None (proxy default if None)
-        """
-        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         self.faiss_index_path = faiss_index_path or os.getenv("FAISS_INDEX_PATH")
-        self.embedding_model = embedding_model or os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
-        self.default_chat_model = default_chat_model or os.getenv("LLM_DEFAULT_MODEL", None)
-        self.default_chat_vendor = default_chat_vendor or os.getenv("LLM_DEFAULT_VENDOR", None)
+        self.embedding_model = embedding_model or os.getenv(
+            "EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL
+        )
 
-        if not all([self.openai_api_key, self.faiss_index_path]):
-            raise ValueError("OpenAI API key and FAISS index path are required")
+        if not self.faiss_index_path:
+            raise ValueError("FAISS index path is required")
 
-        self.client = OpenAI(api_key=self.openai_api_key)
+        self._encoder = None  # Lazy-loaded
 
     def _load_faiss_index_and_documents(self):
         """Load FAISS index and documents."""
@@ -76,75 +55,122 @@ class RAGService:
             documents = pickle.load(f)
         return index, documents
 
-    def _embed_query(self, query: str) -> np.ndarray:
-        """Embed the query using OpenAI's embedding model (direct SDK)."""
-        response = self.client.embeddings.create(input=query, model=self.embedding_model)
-        embedding = np.array(response.data[0].embedding, dtype=np.float32)
-        return embedding
+    def _get_encoder(self):
+        """Lazy-load the sentence-transformers model."""
+        if self._encoder is None:
+            from sentence_transformers import SentenceTransformer
+            self._encoder = SentenceTransformer(self.embedding_model)
+        return self._encoder
 
-    def _search_similar_documents(self, query_embedding: np.ndarray, index, documents, top_k=3):
+    def _embed_query(self, query: str) -> np.ndarray:
+        """Embed the query using the local sentence-transformers model."""
+        encoder = self._get_encoder()
+        embedding = encoder.encode(query, convert_to_numpy=True)
+        return np.array(embedding, dtype=np.float32)
+
+    def _search_similar_documents(self, query_embedding: np.ndarray, index, documents, top_k=10):
         """Search for the most similar documents."""
         D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
-        matched_docs = [documents[idx] for idx in I[0]]
+        matched_docs = [documents[idx] for idx in I[0] if idx < len(documents)]
         return matched_docs
 
-    def _create_prompt(self, context_documents, query_text):
-        """Create a prompt for the LLM using context documents and the query."""
-        context_text = "\n\n---\n\n".join(doc["content"] for doc in context_documents)
-        prompt = (
-            "You are an expert Magic: The Gathering rules assistant. "
-            "Based on the following context from the official MTG rules:\n\n"
-            f"{context_text}\n\n"
-            f"Answer the user's question:\n\n"
-            f"{query_text}\n\n"
-            "Provide a clear, accurate answer based on the rules context. "
-            "If the context doesn't contain enough information, say so."
-        )
-        return prompt
+    def _format_context(self, context_documents: List[Dict[str, Any]]) -> str:
+        """Format retrieved documents into context text with rule numbers."""
+        parts = []
+        for doc in context_documents:
+            meta = doc.get("metadata", {})
+            doc_type = meta.get("type", "")
+            content = doc["content"]
 
-    def _chat_completion(self, prompt: str, temperature: float = 0.0) -> str:
-        """
-        Send the prompt to the chat model via the adapter (proxy-aware).
-        Falls back to direct if USE_LLM_PROXY is false.
-        """
+            if doc_type == "rule":
+                rule_num = meta.get("rule", "")
+                subrules = meta.get("subrules", "")
+                header = f"[Rule {rule_num}"
+                if subrules:
+                    header += f" ({subrules})"
+                header += "]"
+                parts.append(f"{header}\n{content}")
+            elif doc_type == "glossary":
+                term = meta.get("term", "")
+                parts.append(f"[Glossary: {term}]\n{content}")
+            else:
+                # Legacy chunks without structured metadata
+                parts.append(content)
+
+        return "\n\n---\n\n".join(parts)
+
+    def _create_prompt(self, context_documents: List[Dict[str, Any]], query_text: str, card_data: str = "") -> str:
+        """Create a prompt for the LLM using context documents, card data, and the query."""
+        context_text = self._format_context(context_documents)
+
+        prompt_parts = []
+
+        if card_data:
+            prompt_parts.append(
+                "=== CARD ORACLE TEXT & RULINGS ===\n"
+                "Use this to understand what the specific cards do:\n\n"
+                f"{card_data}"
+            )
+
+        prompt_parts.append(
+            "=== COMPREHENSIVE RULES CONTEXT ===\n"
+            "These are the relevant sections from the official MTG Comprehensive Rules:\n\n"
+            f"{context_text}"
+        )
+
+        prompt_parts.append(
+            f"=== QUESTION ===\n{query_text}"
+        )
+
+        return "\n\n".join(prompt_parts)
+
+    def _chat_completion(self, prompt: str, temperature: float = 0.1) -> str:
+        """Send the prompt to Claude via the Anthropic client."""
         messages = [
-            {"role": "system", "content": "You are a helpful Magic: The Gathering rules assistant."},
+            {
+                "role": "system",
+                "content": (
+                    "You are an expert Magic: The Gathering certified rules judge. "
+                    "Your role is to provide accurate, authoritative rulings based on "
+                    "the Comprehensive Rules.\n\n"
+                    "Instructions:\n"
+                    "- Reason step-by-step through the interaction, considering layers, "
+                    "timestamps, replacement effects, continuous effects, and priority as relevant.\n"
+                    "- ONLY cite rule numbers that appear verbatim in the provided Comprehensive Rules context. "
+                    "Never invent, guess, or fabricate rule numbers.\n"
+                    "- If the provided context does not contain enough information to answer "
+                    "confidently, say so explicitly rather than guessing.\n"
+                    "- When card-specific Oracle text is provided, use it to understand how the "
+                    "cards interact with the rules.\n"
+                    "- Be precise and concise. Explain the 'why' behind the ruling."
+                ),
+            },
             {"role": "user", "content": prompt},
         ]
-        resp = openai_client.chat(
+        resp = anthropic_client.chat(
             messages=messages,
-            model=self.default_chat_model,
-            vendor=self.default_chat_vendor,
             temperature=temperature,
-            max_tokens=1000,
-            use_cache=True,
+            max_tokens=1500,
         )
         return resp["choices"][0]["message"]["content"]
 
-    def query(self, query_text: str) -> str:
+    def query(self, query_text: str, card_data: str = "") -> str:
         """
         Query the RAG database.
 
+        Args:
+            query_text: The user's question.
+            card_data: Formatted card Oracle text and rulings (from Scryfall).
+
         Returns:
-            RAG database response (a synthesized answer grounded in retrieved context).
+            RAG database response grounded in retrieved context.
         """
         try:
-            # Load FAISS index and documents
             index, documents = self._load_faiss_index_and_documents()
-
-            # Embed the query
             query_embedding = self._embed_query(query_text)
-
-            # Search for similar documents
-            matched_docs = self._search_similar_documents(query_embedding, index, documents, top_k=3)
-
-            # Create a prompt for the LLM
-            prompt = self._create_prompt(matched_docs, query_text)
-
-            # Chat via adapter (proxy-aware)
+            matched_docs = self._search_similar_documents(query_embedding, index, documents, top_k=10)
+            prompt = self._create_prompt(matched_docs, query_text, card_data=card_data)
             response_text = self._chat_completion(prompt)
-
             return response_text
-
         except Exception as e:
             return f"Error querying RAG database: {str(e)}"
