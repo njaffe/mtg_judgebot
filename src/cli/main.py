@@ -77,6 +77,7 @@ class MTGJudgeCLI:
         time_filter: str = "year",
         sort: str = "top",
         limit: int = 15,
+        conversation_history: Optional[List[Dict]] = None,
     ) -> Dict[str, Any]:
         """
         Run a single query through all sources and synthesize the response.
@@ -174,6 +175,7 @@ class MTGJudgeCLI:
             card_data=card_data_str,
             google_response=google_response,
             reddit_response=reddit_response,
+            conversation_history=conversation_history,
         )
         print(f"Final response: {final['final_answer'][:200]}...")
 

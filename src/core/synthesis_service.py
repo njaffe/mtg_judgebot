@@ -9,7 +9,7 @@ for high-quality rules reasoning.
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -90,6 +90,7 @@ class SynthesisService:
         card_data: str = "",
         google_response: Optional[str] = None,
         reddit_response: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """
         Synthesize a full response with all source information.
@@ -104,10 +105,10 @@ class SynthesisService:
             google_response=google_response,
             reddit_response=reddit_response,
         )
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": prompt})
 
         resp = anthropic_client.chat(
             messages=messages,
