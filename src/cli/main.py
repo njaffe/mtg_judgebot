@@ -101,15 +101,6 @@ class MTGJudgeCLI:
         google_response = None
         reddit_response = None
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            # Always run: Scryfall card lookup + RAG
-            future_scryfall = executor.submit(self._lookup_cards, query_text)
-            # We need card_data for the RAG prompt, so we get it first
-            # then submit RAG — but to maximize parallelism, we start RAG
-            # without card data and the synthesis will have it anyway.
-            # Actually, let's do card lookup first since it's fast (~200ms),
-            # then pass card_data to RAG.
-
         # Step 1: Card lookup (fast, ~200ms)
         print("\nLooking up cards on Scryfall...")
         cards = self.scryfall_client.lookup_cards(query_text)
@@ -188,10 +179,6 @@ class MTGJudgeCLI:
             )
 
         return final
-
-    def _lookup_cards(self, query_text: str) -> List[Dict[str, Any]]:
-        """Look up cards mentioned in the query via Scryfall."""
-        return self.scryfall_client.lookup_cards(query_text)
 
     def run_test_suite(self, start: Optional[int] = None, end: Optional[int] = None) -> List[Dict]:
         """Run the test suite with predefined queries."""

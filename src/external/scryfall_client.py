@@ -16,6 +16,7 @@ import requests
 
 SCRYFALL_BASE = "https://api.scryfall.com"
 REQUEST_DELAY = 0.075  # 75ms between requests (Scryfall asks for 50-100ms)
+HEADERS = {"User-Agent": "MTGJudgeBot/1.0 (github.com/njaffe/mtg_judgebot)"}
 
 # Common MTG terms that look like card names but aren't
 NON_CARD_NAMES = {
@@ -142,6 +143,7 @@ class ScryfallClient:
             resp = requests.get(
                 f"{SCRYFALL_BASE}/cards/named",
                 params={"fuzzy": name},
+                headers=HEADERS,
                 timeout=10,
             )
 
@@ -180,7 +182,7 @@ class ScryfallClient:
             if rulings_uri:
                 self._rate_limit()
                 try:
-                    rulings_resp = requests.get(rulings_uri, timeout=10)
+                    rulings_resp = requests.get(rulings_uri, headers=HEADERS, timeout=10)
                     if rulings_resp.status_code == 200:
                         rulings_data = rulings_resp.json().get("data", [])
                         card["rulings"] = [
