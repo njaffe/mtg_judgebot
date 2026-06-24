@@ -2,8 +2,8 @@
 Synthesis Service for MTG Judge Bot
 
 This module handles the synthesis of responses from multiple sources (RAG, card data,
-and optionally Google/Reddit) into a single, coherent answer. Uses the Anthropic client
-for high-quality rules reasoning.
+and optionally Google/Reddit) into a single, coherent answer. Uses the configured LLM
+client for high-quality rules reasoning.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.external import anthropic_client
+from src.external import llm_client
 
 
 SYSTEM_PROMPT = (
@@ -110,7 +110,7 @@ class SynthesisService:
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": prompt})
 
-        resp = anthropic_client.chat(
+        resp = llm_client.chat(
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
