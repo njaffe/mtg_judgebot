@@ -172,10 +172,12 @@ class MTGJudgeCLI:
 
         usage = final.get("llm_usage", {})
         if usage:
+            cost_usd = usage.get("cost_usd")
+            cost_str = f"${cost_usd:.6f}" if cost_usd is not None else "N/A"
             print(
                 f"Usage: total={usage.get('total_tokens', 0)} "
                 f"(in {usage.get('prompt_tokens', 0)} / out {usage.get('completion_tokens', 0)}) | "
-                f"latency={usage.get('latency_ms', 0)}ms | cost=${usage.get('cost_usd', 0):.6f}"
+                f"latency={usage.get('latency_ms', 0)}ms | cost={cost_str}"
             )
 
         return final

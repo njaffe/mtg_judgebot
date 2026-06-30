@@ -92,6 +92,7 @@ def _chat_openai_compatible(
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
+            "cost_usd": None,  # pricing varies per OpenAI-compatible endpoint/model; not estimable here
             "latency_ms": int((time.time() - start_time) * 1000),
         },
         "cache_hit": False,

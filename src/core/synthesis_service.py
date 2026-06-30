@@ -116,7 +116,10 @@ class SynthesisService:
             max_tokens=self.max_tokens,
         )
 
-        final_answer = resp["choices"][0]["message"]["content"]
+        choices = resp.get("choices") or []
+        if not choices:
+            raise RuntimeError("LLM provider returned no choices in its response.")
+        final_answer = choices[0]["message"]["content"]
         usage_meta = resp.get("usage", {})
 
         return {
