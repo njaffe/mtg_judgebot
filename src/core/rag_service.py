@@ -3,7 +3,7 @@ RAG Service for MTG Judge Bot
 
 This module provides a service class for RAG database operations using FAISS.
 Embeddings use sentence-transformers (local, no API key needed).
-Chat completions use the Anthropic client for higher-quality rules reasoning.
+Chat completions use the configured LLM client for rules reasoning.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import numpy as np
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
-from src.external import anthropic_client
+from src.external import llm_client
 
 # Load environment variables
 load_dotenv()
@@ -125,7 +125,7 @@ class RAGService:
         return "\n\n".join(prompt_parts)
 
     def _chat_completion(self, prompt: str, temperature: float = 0.1) -> str:
-        """Send the prompt to Claude via the Anthropic client."""
+        """Send the prompt to the configured LLM provider."""
         messages = [
             {
                 "role": "system",
@@ -147,7 +147,7 @@ class RAGService:
             },
             {"role": "user", "content": prompt},
         ]
-        resp = anthropic_client.chat(
+        resp = llm_client.chat(
             messages=messages,
             temperature=temperature,
             max_tokens=1500,
